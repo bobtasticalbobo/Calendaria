@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
@@ -23,16 +23,43 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      # Update signing happens on release builds only (scripts/release.sh).
-      - shell: bash
-        run: npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      # Builds are signed for the updater when the signing key secret is set;
+      # without it (e.g. pull requests from forks) they are built unsigned.
+      - name: Build
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build --bundles nsis
+          else
+            npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          fi
       - name: Collect the app
+        id: collect
         shell: bash
         run: |
           mkdir out
           cp src-tauri/target/release/bundle/nsis/*-setup.exe out/
           cp src-tauri/target/release/calendaria.exe out/Calendaria-portable.exe
+          echo "version=$(node -p 'require("./src-tauri/tauri.conf.json").version')" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: Calendaria-windows
           path: out/*.exe
+      # Each version merged to main becomes a release, which installed copies
+      # find through latest.json and offer to install.
+      - name: Write update manifest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: node scripts/update-manifest.mjs src-tauri/target/release/bundle/nsis ${{ github.repository }} > out/latest.json
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.collect.outputs.version }}
+          name: Calendaria ${{ steps.collect.outputs.version }}
+          make_latest: true
+          files: |
+            out/Calendaria_*_x64-setup.exe
+            out/latest.json

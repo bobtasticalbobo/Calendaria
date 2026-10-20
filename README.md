@@ -29,10 +29,13 @@ hour. When there is one, the sidebar shows **Update and restart**, which
 downloads it, installs it with just a progress bar and reopens the app. Your
 data is kept, since it lives separately in your user profile.
 
-Releases are signed, and the app only installs ones signed with the updater
-key (its public half is in `tauri.conf.json`). To publish one, bump the
-version in `tauri.conf.json`, `Cargo.toml` and `package.json`, then run
-`TAURI_SIGNING_PRIVATE_KEY=<key> scripts/release.sh`.
+Each version merged to `main` becomes a release: GitHub Actions builds it,
+signs it with the `TAURI_SIGNING_PRIVATE_KEY` repository secret, and publishes
+the installer with a `latest.json` the app reads. The app only installs
+releases signed with that key (its public half is in `tauri.conf.json`).
+Remember to bump the version in `tauri.conf.json`, `Cargo.toml` and
+`package.json`, or the release replaces the previous one under the same
+version and installed copies won't see it as new.
 
 ## Getting started
 
