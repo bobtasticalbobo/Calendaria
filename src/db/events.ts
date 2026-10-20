@@ -21,7 +21,11 @@ export interface CalendarEvent extends SyncedRecord {
   recurrence: Recurrence | null;
   /** Minutes before the start, ascending. */
   reminders: number[];
+  /** Set for events imported from a calendar file; see `importEvent`. */
+  sourceUid: string | null;
 }
+
+export type ImportOutcome = "created" | "updated" | "skipped";
 
 export interface EventInput {
   calendarId: string;
@@ -53,11 +57,12 @@ interface EventRow extends SyncedRow {
   rrule: string | null;
   exdates: string;
   reminders: string;
+  source_uid: string | null;
 }
 
 const COLUMNS =
   "id, calendar_id, title, description, location, all_day, start_local, end_local, " +
-  "time_zone, start_utc, end_utc, rrule, exdates, reminders, created_at, updated_at, deleted_at";
+  "time_zone, start_utc, end_utc, rrule, exdates, reminders, created_at, updated_at, deleted_at, source_uid";
 
 /** Fixed-width UTC text, so stored instants compare correctly as strings. */
 function utcText(instant: Temporal.Instant): string {
@@ -90,6 +95,7 @@ function fromRow(row: EventRow): CalendarEvent {
     timing: timingFromRow(row),
     recurrence: row.rrule ? { rule: row.rrule, exdates: JSON.parse(row.exdates) } : null,
     reminders: JSON.parse(row.reminders),
+    sourceUid: row.source_uid,
   };
 }
 
@@ -166,12 +172,41 @@ export class EventRepository {
       updatedAt: now,
       deletedAt: null,
     });
-    await this.db.execute(
-      `INSERT INTO events (${COLUMNS})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
-      this.rowValues(event),
-    );
+    await this.insert(event);
     return event;
+  }
+
+  /**
+   * Saves an event read from a calendar file. Importing the same file again
+   * updates the events it created, and leaves alone any you deleted since.
+   */
+  async importEvent(
+    sourceUid: string,
+    input: EventInput,
+    exdates: string[],
+  ): Promise<ImportOutcome> {
+    const rows = await this.db.select<EventRow>(
+      `SELECT ${COLUMNS} FROM events WHERE calendar_id = $1 AND source_uid = $2`,
+      [input.calendarId, sourceUid],
+    );
+    const existing = rows.length ? fromRow(rows[0]) : null;
+    if (existing?.deletedAt) return "skipped";
+
+    const now = toTimestamp(this.clock());
+    const event = this.build(
+      input,
+      existing
+        ? { ...existing, updatedAt: now }
+        : { id: newId(), createdAt: now, updatedAt: now, deletedAt: null },
+    );
+    event.sourceUid = sourceUid;
+    if (event.recurrence) event.recurrence.exdates = [...new Set(exdates)];
+    if (existing) {
+      await this.write(event);
+      return "updated";
+    }
+    await this.insert(event);
+    return "created";
   }
 
   /**
@@ -227,7 +262,10 @@ export class EventRepository {
     return event;
   }
 
-  private build(input: EventInput, synced: SyncedRecord): CalendarEvent {
+  private build(
+    input: EventInput,
+    synced: SyncedRecord & { sourceUid?: string | null },
+  ): CalendarEvent {
     validateTiming(input.timing);
     const event: CalendarEvent = {
       ...synced,
@@ -238,9 +276,18 @@ export class EventRepository {
       timing: input.timing,
       recurrence: input.rule ? { rule: input.rule, exdates: [] } : null,
       reminders: validReminders(input.reminders ?? []),
+      sourceUid: synced.sourceUid ?? null,
     };
     indexColumns(event); // Throws early on an unparseable rule.
     return event;
+  }
+
+  private async insert(event: CalendarEvent): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO events (${COLUMNS})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+      this.rowValues(event),
+    );
   }
 
   private async write(event: CalendarEvent): Promise<void> {
@@ -275,6 +322,7 @@ export class EventRepository {
       event.createdAt,
       event.updatedAt,
       event.deletedAt,
+      event.sourceUid,
     ];
   }
 }

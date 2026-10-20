@@ -190,6 +190,24 @@ button:hover {
   color: var(--muted);
 }
 
+.import {
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.import-result {
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.import-result p {
+  margin: 0 0 4px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
 .zone-note {
   margin-top: auto;
   font-size: 0.75rem;

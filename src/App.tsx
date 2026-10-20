@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import { type Calendar, CalendarRepository } from "./db/calendars";
 import { type EventOccurrence, EventRepository } from "./db/events";
 import { openTauriDriver } from "./db/tauriDriver";
+import { type ImportSummary, importIcs } from "./import/importCalendar";
 import { Temporal } from "./time/temporal";
 import { systemTimeZone } from "./time/timing";
 import { type DialogTarget, type EditScope, EventDialog } from "./ui/EventDialog";
@@ -29,6 +30,8 @@ export default function App() {
   const [anchor, setAnchor] = useState(() => Temporal.Now.plainDateISO(zone));
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [newName, setNewName] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportSummary | { error: string } | null>(null);
   // Bumped after every change so the visible range reloads.
   const [version, setVersion] = useState(0);
   const changed = () => setVersion((v) => v + 1);
@@ -103,6 +106,19 @@ export default function App() {
     changed();
   }
 
+  async function importFile(file: File) {
+    setImporting(true);
+    setImportResult(null);
+    try {
+      setImportResult(await importIcs(await file.text(), repos!, zone));
+    } catch (e) {
+      setImportResult({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setImporting(false);
+      changed();
+    }
+  }
+
   const openDay = (day: Temporal.PlainDate) => {
     setAnchor(day);
     setMode("day");
@@ -137,6 +153,43 @@ export default function App() {
           />
           <button type="submit">Add</button>
         </form>
+        <label className="link import">
+          {importing ? "Importing…" : "Import .ics file"}
+          <input
+            type="file"
+            accept=".ics,text/calendar"
+            hidden
+            disabled={importing}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) importFile(file);
+            }}
+          />
+        </label>
+        {importResult && (
+          <div className="import-result">
+            {"error" in importResult ? (
+              <p className="error-text">{importResult.error}</p>
+            ) : (
+              <>
+                <p>
+                  {importResult.created} added, {importResult.updated} updated
+                  {importResult.skipped > 0 && `, ${importResult.skipped} you'd deleted left out`} in{" "}
+                  {importResult.calendarName}.
+                </p>
+                {importResult.warnings.map((w) => (
+                  <p key={w} className="muted">
+                    {w}
+                  </p>
+                ))}
+              </>
+            )}
+            <button type="button" className="link" onClick={() => setImportResult(null)}>
+              Dismiss
+            </button>
+          </div>
+        )}
         <p className="zone-note">Times shown in {zone}</p>
       </aside>
 

@@ -65,6 +65,26 @@ done by hand. The code lives in `src/time/`.
 
 `tests/recurrence.test.ts` covers these cases.
 
+## Importing from Outlook
+
+Use **Import .ics file** in the sidebar. Events go into a calendar called
+"Outlook" (or the file's own calendar name), and importing a newer export of
+the same calendar updates those events instead of duplicating them. Events you
+deleted in Calendaria stay deleted.
+
+To get the file:
+
+- **Classic Outlook for Windows:** select your calendar, then *File → Save
+  Calendar*. Click *More Options*, set *Date Range* to *Whole calendar* and
+  *Detail* to *Full details*, then save.
+- **New Outlook / Outlook on the web:** *Settings → Calendar → Shared
+  calendars → Publish a calendar*, choose your calendar and *Can view all
+  details*, publish, then open the ICS link to download the file.
+
+Outlook's Windows time zone names (e.g. "W. Europe Standard Time") are mapped
+to standard zones. Repeating events keep their changed and deleted
+occurrences. Anything that can't be imported exactly is listed after the import.
+
 ## Adding a schema change
 
 1. Add `src-tauri/migrations/NNNN_description.sql` with the next number.
