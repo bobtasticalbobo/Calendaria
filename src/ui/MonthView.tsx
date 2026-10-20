@@ -3,7 +3,8 @@ import { Temporal } from "../time/temporal";
 import { EventChip } from "./EventChip";
 import { formatWeekday } from "./dates";
 import { itemsOnDay } from "./layout";
-import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
+import { DayNotes, type NoteHandlers, dayTagStyle, noteDropTarget } from "./notes";
+import { TagLabels } from "./TagPicker";
 
 interface Props {
   days: Temporal.PlainDate[];
@@ -35,10 +36,13 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
         const classes = ["month-day"];
         if (day.month !== month) classes.push("other-month");
         if (day.equals(today)) classes.push("today");
+        const tags = notes.tagsOn(day);
+        const tagged = dayTagStyle(tags);
         return (
           <div
             key={day.toString()}
-            className={classes.join(" ")}
+            className={classes.join(" ") + tagged.className}
+            style={tagged.style}
             onDoubleClick={() => onCreate(day)}
             onContextMenu={(e) => notes.menu(e, day)}
             {...noteDropTarget(day, notes)}
@@ -48,6 +52,7 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
                 {day.day}
               </button>
               <DayNotes day={day} handlers={notes} />
+              <TagLabels tags={tags} />
             </div>
             {dayItems.slice(0, hidden > 0 ? MAX_PER_DAY - 1 : MAX_PER_DAY).map((item) => (
               <EventChip

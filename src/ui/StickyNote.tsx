@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
+import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatWeekday } from "./dates";
 import { startNoteDrag } from "./notes";
+import { TagLabels, TagPicker } from "./TagPicker";
 
 interface Props {
   note: Note;
   anchor: DOMRect;
   zone: string;
+  tags: Tag[];
+  onCreateTag: (name: string, color: string) => Promise<Tag>;
   onChange: (patch: Partial<NoteInput>) => void;
   onDelete: () => void;
   onClose: () => void;
@@ -27,8 +31,10 @@ function defaultReminder(day: Temporal.PlainDate, zone: string): Temporal.PlainD
 }
 
 /** An open sticky note, placed beside the marker it was opened from. */
-export function StickyNote({ note, anchor, zone, onChange, onDelete, onClose }: Props) {
+export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, onDelete, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  const [picking, setPicking] = useState(false);
+  const noteTags = note.tags.map((id) => tags.find((t) => t.id === id)).filter((t): t is Tag => !!t);
   const [body, setBody] = useState(note.body);
   const pending = useRef<number | undefined>(undefined);
   const latest = useRef({ body, note, onChange, onDelete, onClose });
@@ -78,7 +84,11 @@ export function StickyNote({ note, anchor, zone, onChange, onDelete, onClose }: 
   const top = Math.max(8, Math.min(anchor.top, window.innerHeight - HEIGHT - 8));
 
   return (
-    <div ref={ref} className={`sticky paper-${note.color}`} style={{ left, top, width: WIDTH }}>
+    <div
+      ref={ref}
+      className={`sticky paper-${note.color}${noteTags.length ? " has-tag" : ""}`}
+      style={{ left, top, width: WIDTH, ...(noteTags.length ? { "--tag": noteTags[0].color } : {}) } as React.CSSProperties}
+    >
       <div
         className="sticky-bar"
         draggable
@@ -102,6 +112,11 @@ export function StickyNote({ note, anchor, zone, onChange, onDelete, onClose }: 
           />
         ))}
       </div>
+      {noteTags.length > 0 && (
+        <div className="sticky-tags">
+          <TagLabels tags={noteTags} />
+        </div>
+      )}
       <textarea
         className="sticky-text"
         autoFocus
@@ -139,10 +154,23 @@ export function StickyNote({ note, anchor, zone, onChange, onDelete, onClose }: 
           />
         )}
         <span className="spacer" />
+        <button type="button" onClick={() => setPicking((p) => !p)}>
+          Tags
+        </button>
         <button type="button" className="sticky-delete" aria-label="Delete note" title="Delete note" onClick={discard}>
           Delete
         </button>
       </div>
+      {picking && (
+        <div className={top > window.innerHeight / 2 ? "sticky-picker above" : "sticky-picker"}>
+          <TagPicker
+            tags={tags}
+            selected={note.tags}
+            onCreate={onCreateTag}
+            onToggle={(id, on) => onChange({ tags: on ? [...note.tags, id] : note.tags.filter((t) => t !== id) })}
+          />
+        </div>
+      )}
     </div>
   );
 }

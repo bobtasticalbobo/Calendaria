@@ -4,6 +4,7 @@ import { type EventOccurrence, EventRepository } from "./db/events";
 import { type Note, type NoteInput, NoteRepository } from "./db/notes";
 import type { SqlDriver } from "./db/driver";
 import { SettingsRepository } from "./db/settings";
+import { type Tag, type TagInput, TagRepository } from "./db/tags";
 import { openTauriDriver } from "./db/tauriDriver";
 import { type ImportSummary, importIcs } from "./import/importCalendar";
 import { Temporal } from "./time/temporal";
@@ -18,7 +19,8 @@ import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./u
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
 import { useUpdate } from "./ui/useUpdate";
 import { useSync } from "./ui/useSync";
-import { SyncPanel } from "./ui/SyncPanel";
+import { SettingsDialog } from "./ui/SettingsDialog";
+import { Popover, TagPicker } from "./ui/TagPicker";
 import { useReminders } from "./ui/useReminders";
 import "./App.css";
 
@@ -28,6 +30,7 @@ interface Repos {
   calendars: CalendarRepository;
   events: EventRepository;
   notes: NoteRepository;
+  tags: TagRepository;
 }
 
 interface MenuTarget {
@@ -46,6 +49,10 @@ export default function App() {
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [items, setItems] = useState<EventOccurrence[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [dayTags, setDayTags] = useState<Map<string, string[]>>(new Map());
+  const [tagMenu, setTagMenu] = useState<{ x: number; y: number; day: Temporal.PlainDate } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [openNote, setOpenNote] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [mode, setMode] = useState<ViewMode>("month");
@@ -79,6 +86,7 @@ export default function App() {
         calendars: calendarRepo,
         events: new EventRepository(db),
         notes: new NoteRepository(db),
+        tags: new TagRepository(db),
       });
     })().catch((e) => setError(String(e)));
   }, []);
@@ -92,11 +100,15 @@ export default function App() {
       repos.calendars.list(),
       repos.events.occurrencesInRange(start, end, zone),
       repos.notes.listOnDays(days[0], days[days.length - 1]),
+      repos.tags.list(),
+      repos.tags.onDays(days[0], days[days.length - 1]),
     ])
-      .then(([cals, occurrences, dayNotes]) => {
+      .then(([cals, occurrences, dayNotes, allTags, tagsByDay]) => {
         setCalendars(cals);
         setItems(occurrences);
         setNotes(dayNotes);
+        setTags(allTags);
+        setDayTags(tagsByDay);
       })
       .catch((e) => setError(String(e)));
   }, [repos, days, zone, version]);
@@ -112,9 +124,13 @@ export default function App() {
 
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  const tagById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
+
   const noteHandlers = useMemo<NoteHandlers>(
     () => ({
       notesOn: (day) => notes.filter((n) => n.day.equals(day)),
+      tagsOn: (day) => (dayTags.get(day.toString()) ?? []).flatMap((id) => tagById.get(id) ?? []),
+      tag: (id) => tagById.get(id),
       open: (note, anchor) => setOpenNote({ id: note.id, anchor: anchor.getBoundingClientRect() }),
       move: (id, day) => {
         setOpenNote(null);
@@ -126,7 +142,7 @@ export default function App() {
         setMenu({ x: e.clientX, y: e.clientY, day, time });
       },
     }),
-    [notes, repos],
+    [notes, dayTags, tagById, repos],
   );
 
   if (error) return <main className="centered error">{error}</main>;
@@ -197,6 +213,30 @@ export default function App() {
     await repos!.notes.remove(id);
     setNotes((current) => current.filter((n) => n.id !== id));
     edited();
+  }
+
+  async function createTag(name: string, color: string): Promise<Tag> {
+    const tag = await repos!.tags.create({ name, color });
+    setTags((current) => [...current, tag]);
+    edited();
+    return tag;
+  }
+
+  function changeTag(id: string, patch: Partial<TagInput>) {
+    repos!.tags.update(id, patch).then(changed, (e) => setError(String(e)));
+  }
+
+  function deleteTag(id: string) {
+    repos!.tags.remove(id).then(changed, (e) => setError(String(e)));
+  }
+
+  function setDayTag(day: Temporal.PlainDate, tagId: string, on: boolean) {
+    const key = day.toString();
+    setDayTags((current) => {
+      const ids = (current.get(key) ?? []).filter((id) => id !== tagId);
+      return new Map(current).set(key, on ? [...ids, tagId] : ids);
+    });
+    repos!.tags.setOnDay(day, tagId, on).then(edited, (e) => setError(String(e)));
   }
 
   const editingNote = openNote && notes.find((n) => n.id === openNote.id);
@@ -272,7 +312,6 @@ export default function App() {
             </button>
           </div>
         )}
-        <SyncPanel sync={sync} />
         {appUpdate.update && (
           <div className="update">
             <p>Version {appUpdate.update.version} is ready.</p>
@@ -286,6 +325,10 @@ export default function App() {
           Times shown in {zone}
           <br />
           Version {__APP_VERSION__}
+          <br />
+          <button type="button" className="link settings-open" onClick={() => setSettingsOpen(true)}>
+            Settings
+          </button>
         </p>
       </aside>
 
@@ -344,7 +387,31 @@ export default function App() {
           items={[
             { label: "New event", onSelect: () => setDialog({ kind: "new", day: menu.day, time: menu.time }) },
             { label: "Note", onSelect: () => addNote(menu).catch((e) => setError(String(e))) },
+            { label: "Tags", onSelect: () => setTagMenu({ x: menu.x, y: menu.y, day: menu.day }) },
           ]}
+        />
+      )}
+
+      {tagMenu && (
+        <Popover x={tagMenu.x} y={tagMenu.y} onClose={() => setTagMenu(null)}>
+          <TagPicker
+            tags={tags}
+            selected={dayTags.get(tagMenu.day.toString()) ?? []}
+            onCreate={createTag}
+            onToggle={(id, on) => setDayTag(tagMenu.day, id, on)}
+          />
+        </Popover>
+      )}
+
+      {settingsOpen && (
+        <SettingsDialog
+          appUpdate={appUpdate}
+          sync={sync}
+          tags={tags}
+          onCreateTag={createTag}
+          onChangeTag={changeTag}
+          onDeleteTag={deleteTag}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 
@@ -354,6 +421,8 @@ export default function App() {
           note={editingNote}
           anchor={openNote.anchor}
           zone={zone}
+          tags={tags}
+          onCreateTag={createTag}
           onChange={(patch) => changeNote(editingNote.id, patch).catch((e) => setError(String(e)))}
           onDelete={() => removeNote(editingNote.id).catch((e) => setError(String(e)))}
           onClose={() => setOpenNote(null)}

@@ -25,6 +25,8 @@ export interface Note extends SyncedRecord {
   body: string;
   color: NoteColor;
   remind: NoteReminder | null;
+  /** Tag ids, in the order they were added. */
+  tags: string[];
 }
 
 export interface NoteInput {
@@ -32,6 +34,7 @@ export interface NoteInput {
   body?: string;
   color?: NoteColor;
   remind?: NoteReminder | null;
+  tags?: string[];
 }
 
 interface NoteRow extends SyncedRow {
@@ -41,10 +44,11 @@ interface NoteRow extends SyncedRow {
   remind_local: string | null;
   remind_zone: string | null;
   remind_utc: string | null;
+  tags: string;
 }
 
 const COLUMNS =
-  "id, day, body, color, remind_local, remind_zone, remind_utc, created_at, updated_at, deleted_at";
+  "id, day, body, color, remind_local, remind_zone, remind_utc, tags, created_at, updated_at, deleted_at";
 
 function fromRow(row: NoteRow): Note {
   return {
@@ -56,7 +60,17 @@ function fromRow(row: NoteRow): Note {
       row.remind_local && row.remind_zone
         ? { at: Temporal.PlainDateTime.from(row.remind_local), timeZone: row.remind_zone }
         : null,
+    tags: parseTags(row.tags),
   };
+}
+
+function parseTags(json: string): string[] {
+  try {
+    const tags: unknown = JSON.parse(json);
+    return Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 function validColor(color: string): NoteColor {
@@ -120,12 +134,13 @@ export class NoteRepository {
       body: input.body ?? "",
       color: validColor(input.color ?? "yellow"),
       remind: validReminder(input.remind ?? null),
+      tags: [...new Set(input.tags ?? [])],
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
     };
     await this.db.execute(
-      `INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      `INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         note.id,
         note.day.toString(),
@@ -134,6 +149,7 @@ export class NoteRepository {
         note.remind?.at.toString() ?? null,
         note.remind?.timeZone ?? null,
         remindUtc(note.remind),
+        JSON.stringify(note.tags),
         note.createdAt,
         note.updatedAt,
         note.deletedAt,
@@ -151,12 +167,13 @@ export class NoteRepository {
       body: patch.body ?? existing.body,
       color: patch.color === undefined ? existing.color : validColor(patch.color),
       remind: patch.remind === undefined ? existing.remind : validReminder(patch.remind),
+      tags: patch.tags === undefined ? existing.tags : [...new Set(patch.tags)],
       updatedAt: toTimestamp(this.clock()),
     };
     await this.db.execute(
       `UPDATE notes SET day = $1, body = $2, color = $3, remind_local = $4, remind_zone = $5,
-         remind_utc = $6, updated_at = $7
-       WHERE id = $8`,
+         remind_utc = $6, tags = $7, updated_at = $8
+       WHERE id = $9`,
       [
         updated.day.toString(),
         updated.body,
@@ -164,6 +181,7 @@ export class NoteRepository {
         updated.remind?.at.toString() ?? null,
         updated.remind?.timeZone ?? null,
         remindUtc(updated.remind),
+        JSON.stringify(updated.tags),
         updated.updatedAt,
         id,
       ],

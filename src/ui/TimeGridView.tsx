@@ -5,7 +5,8 @@ import { timingBounds } from "../time/timing";
 import { EventChip } from "./EventChip";
 import { formatTime, formatWeekday } from "./dates";
 import { itemsOnDay, layoutDay } from "./layout";
-import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
+import { DayNotes, type NoteHandlers, dayTagStyle, noteDropTarget } from "./notes";
+import { TagLabels } from "./TagPicker";
 
 interface Props {
   days: Temporal.PlainDate[];
@@ -45,18 +46,24 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
     <div className="timegrid">
       <div className="timegrid-header" style={columns}>
         <div />
-        {days.map((day) => (
-          <div
-            key={day.toString()}
-            className={day.equals(today) ? "timegrid-dayname today" : "timegrid-dayname"}
-            onContextMenu={(e) => notes.menu(e, day)}
-            {...noteDropTarget(day, notes)}
-          >
-            <span>{formatWeekday(day)}</span>
-            <strong>{day.day}</strong>
-            <DayNotes day={day} handlers={notes} />
-          </div>
-        ))}
+        {days.map((day) => {
+          const tags = notes.tagsOn(day);
+          const tagged = dayTagStyle(tags);
+          return (
+            <div
+              key={day.toString()}
+              className={(day.equals(today) ? "timegrid-dayname today" : "timegrid-dayname") + tagged.className}
+              style={tagged.style}
+              onContextMenu={(e) => notes.menu(e, day)}
+              {...noteDropTarget(day, notes)}
+            >
+              <span>{formatWeekday(day)}</span>
+              <strong>{day.day}</strong>
+              <DayNotes day={day} handlers={notes} />
+              <TagLabels tags={tags} />
+            </div>
+          );
+        })}
         <div className="timegrid-allday-label">all-day</div>
         {perDay.map(({ day, allDay }) => (
           <div
