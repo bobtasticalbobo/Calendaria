@@ -1,52 +1,124 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { type Calendar, CalendarRepository } from "./db/calendars";
+import { type EventOccurrence, EventRepository } from "./db/events";
 import { openTauriDriver } from "./db/tauriDriver";
+import { Temporal } from "./time/temporal";
+import { systemTimeZone } from "./time/timing";
+import { type DialogTarget, type EditScope, EventDialog } from "./ui/EventDialog";
+import { MonthView } from "./ui/MonthView";
+import { TimeGridView } from "./ui/TimeGridView";
+import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
+import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
+import { useReminders } from "./ui/useReminders";
 import "./App.css";
 
-type State =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "ready"; repo: CalendarRepository; calendars: Calendar[] };
+interface Repos {
+  calendars: CalendarRepository;
+  events: EventRepository;
+}
 
 const inTauri = "__TAURI_INTERNALS__" in window;
 
 export default function App() {
-  const [state, setState] = useState<State>({ status: "loading" });
+  const zone = useMemo(systemTimeZone, []);
+  const [repos, setRepos] = useState<Repos | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [calendars, setCalendars] = useState<Calendar[]>([]);
+  const [items, setItems] = useState<EventOccurrence[]>([]);
+  const [mode, setMode] = useState<ViewMode>("month");
+  const [anchor, setAnchor] = useState(() => Temporal.Now.plainDateISO(zone));
+  const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [newName, setNewName] = useState("");
+  // Bumped after every change so the visible range reloads.
+  const [version, setVersion] = useState(0);
+  const changed = () => setVersion((v) => v + 1);
 
   useEffect(() => {
     if (!inTauri) {
-      setState({
-        status: "error",
-        message: "Calendaria stores data on your device, so run it with `npm run tauri dev`.",
-      });
+      setError("Calendaria stores data on your device, so run it with `npm run tauri dev`.");
       return;
     }
     (async () => {
-      const repo = new CalendarRepository(await openTauriDriver());
-      await repo.ensureDefault();
-      setState({ status: "ready", repo, calendars: await repo.list() });
-    })().catch((e) => setState({ status: "error", message: String(e) }));
+      const db = await openTauriDriver();
+      const calendarRepo = new CalendarRepository(db);
+      await calendarRepo.ensureDefault();
+      setRepos({ calendars: calendarRepo, events: new EventRepository(db) });
+    })().catch((e) => setError(String(e)));
   }, []);
 
-  if (state.status === "loading") return <main className="centered">Loading…</main>;
-  if (state.status === "error") return <main className="centered error">{state.message}</main>;
+  const days = useMemo(() => visibleDays(mode, anchor), [mode, anchor]);
 
-  const { repo, calendars } = state;
-  const refresh = async () => setState({ ...state, calendars: await repo.list() });
+  useEffect(() => {
+    if (!repos) return;
+    const { start, end } = dayRange(days, zone);
+    Promise.all([repos.calendars.list(), repos.events.occurrencesInRange(start, end, zone)])
+      .then(([cals, occurrences]) => {
+        setCalendars(cals);
+        setItems(occurrences);
+      })
+      .catch((e) => setError(String(e)));
+  }, [repos, days, zone, version]);
+
+  useReminders(repos?.events ?? null, zone);
+
+  const colorOf = useCallback(
+    (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color ?? "#888888",
+    [calendars],
+  );
+
+  if (error) return <main className="centered error">{error}</main>;
+  if (!repos) return <main className="centered">Loading…</main>;
 
   async function addCalendar(e: FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    await repo.create({ name: newName });
+    await repos!.calendars.create({ name: newName });
     setNewName("");
-    await refresh();
+    changed();
   }
+
+  async function save(input: Parameters<EventRepository["create"]>[0], scope: EditScope) {
+    const { events } = repos!;
+    if (dialog?.kind === "new") {
+      await events.create(input);
+    } else if (dialog?.kind === "edit") {
+      const { event, occurrence } = dialog.item;
+      if (!event.recurrence) await events.update(event.id, input);
+      else if (scope === "this") await events.detachOccurrence(event.id, occurrence.key, input);
+      else {
+        const timing = seriesTimingFromOccurrenceEdit(event.timing, occurrence.timing, input.timing);
+        await events.update(event.id, { ...input, timing });
+      }
+    }
+    setDialog(null);
+    changed();
+  }
+
+  async function remove(scope: EditScope) {
+    if (dialog?.kind !== "edit") return;
+    const { event, occurrence } = dialog.item;
+    if (event.recurrence && scope === "this") await repos!.events.removeOccurrence(event.id, occurrence.key);
+    else await repos!.events.remove(event.id);
+    setDialog(null);
+    changed();
+  }
+
+  const openDay = (day: Temporal.PlainDate) => {
+    setAnchor(day);
+    setMode("day");
+  };
 
   return (
     <div className="layout">
       <aside className="sidebar">
         <h1>Calendaria</h1>
+        <button
+          type="button"
+          className="primary new-event"
+          onClick={() => setDialog({ kind: "new", day: anchor, time: new Temporal.PlainTime(9) })}
+        >
+          New event
+        </button>
         <h2>Calendars</h2>
         <ul className="calendar-list">
           {calendars.map((cal) => (
@@ -65,10 +137,64 @@ export default function App() {
           />
           <button type="submit">Add</button>
         </form>
+        <p className="zone-note">Times shown in {zone}</p>
       </aside>
-      <main className="content centered">
-        <p>Calendar views are coming in the next step.</p>
+
+      <main className="content">
+        <header className="toolbar">
+          <button type="button" onClick={() => setAnchor(Temporal.Now.plainDateISO(zone))}>
+            Today
+          </button>
+          <button type="button" aria-label="Previous" onClick={() => setAnchor(stepAnchor(mode, anchor, -1))}>
+            ‹
+          </button>
+          <button type="button" aria-label="Next" onClick={() => setAnchor(stepAnchor(mode, anchor, 1))}>
+            ›
+          </button>
+          <h2>{viewTitle(mode, anchor)}</h2>
+          <span className="spacer" />
+          <div className="segmented">
+            {(["day", "week", "month"] as const).map((m) => (
+              <button type="button" key={m} className={m === mode ? "active" : ""} onClick={() => setMode(m)}>
+                {m[0].toUpperCase() + m.slice(1)}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        {mode === "month" ? (
+          <MonthView
+            days={days}
+            month={anchor.month}
+            items={items}
+            zone={zone}
+            colorOf={colorOf}
+            onSelect={(item) => setDialog({ kind: "edit", item })}
+            onCreate={(day) => setDialog({ kind: "new", day })}
+            onOpenDay={openDay}
+          />
+        ) : (
+          <TimeGridView
+            days={days}
+            items={items}
+            zone={zone}
+            colorOf={colorOf}
+            onSelect={(item) => setDialog({ kind: "edit", item })}
+            onCreate={(day, time) => setDialog({ kind: "new", day, time })}
+          />
+        )}
       </main>
+
+      {dialog && (
+        <EventDialog
+          target={dialog}
+          calendars={calendars}
+          zone={zone}
+          onSave={save}
+          onDelete={remove}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </div>
   );
 }
