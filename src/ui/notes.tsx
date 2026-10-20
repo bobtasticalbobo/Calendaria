@@ -1,9 +1,12 @@
 import type { Note } from "../db/notes";
+import type { Tag } from "../db/tags";
 import type { Temporal } from "../time/temporal";
 
-/** What the calendar views need to show notes and accept dropped ones. */
+/** What the calendar views need to show notes and day tags, and accept dropped notes. */
 export interface NoteHandlers {
   notesOn: (day: Temporal.PlainDate) => Note[];
+  tagsOn: (day: Temporal.PlainDate) => Tag[];
+  tag: (id: string) => Tag | undefined;
   open: (note: Note, anchor: HTMLElement) => void;
   move: (id: string, day: Temporal.PlainDate) => void;
   menu: (e: React.MouseEvent, day: Temporal.PlainDate, time?: Temporal.PlainTime) => void;
@@ -44,28 +47,38 @@ export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers) 
   };
 }
 
+/** Class and style that tint a day in its first tag's color. */
+export function dayTagStyle(tags: Tag[]): { className: string; style?: React.CSSProperties } {
+  if (!tags.length) return { className: "" };
+  return { className: " tagged", style: { "--tag": tags[0].color } as React.CSSProperties };
+}
+
 /** A day's notes, folded down to small paper squares until opened. */
 export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers: NoteHandlers }) {
   const notes = handlers.notesOn(day);
   if (!notes.length) return null;
   return (
     <span className="day-notes">
-      {notes.map((note) => (
-        <button
-          type="button"
-          key={note.id}
-          className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}`}
-          title={noteTitle(note)}
-          aria-label={`Note: ${noteTitle(note)}`}
-          draggable
-          onDragStart={(e) => startNoteDrag(e, note)}
-          onClick={(e) => {
-            e.stopPropagation();
-            handlers.open(note, e.currentTarget);
-          }}
-          onDoubleClick={(e) => e.stopPropagation()}
-        />
-      ))}
+      {notes.map((note) => {
+        const tag = note.tags.map(handlers.tag).find(Boolean);
+        return (
+          <button
+            type="button"
+            key={note.id}
+            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}${tag ? " has-tag" : ""}`}
+            style={tag ? ({ "--tag": tag.color } as React.CSSProperties) : undefined}
+            title={noteTitle(note)}
+            aria-label={`Note: ${noteTitle(note)}`}
+            draggable
+            onDragStart={(e) => startNoteDrag(e, note)}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlers.open(note, e.currentTarget);
+            }}
+            onDoubleClick={(e) => e.stopPropagation()}
+          />
+        );
+      })}
     </span>
   );
 }

@@ -761,3 +761,214 @@ button:hover {
 .link.accent {
   color: var(--accent);
 }
+
+/* Tags: a tagged day is tinted in its first tag's color. */
+
+.tagged {
+  background: color-mix(in srgb, var(--tag) 12%, transparent);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--tag) 70%, transparent);
+}
+
+.tag-labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.month-day-head .tag-labels {
+  margin-left: auto;
+}
+
+.tag-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-marker.has-tag {
+  box-shadow: inset 0 -3px 0 var(--tag);
+}
+
+.sticky.has-tag {
+  border-top: 4px solid var(--tag);
+}
+
+.sticky-tags {
+  padding: 0 10px;
+}
+
+.sticky-tags .tag-label {
+  filter: brightness(0.6);
+}
+
+.sticky-picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  color: var(--text);
+}
+
+.popover {
+  position: fixed;
+  z-index: 20;
+  width: 220px;
+  padding: 6px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.tag-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+}
+
+.tag-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.tag-option-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-check {
+  color: var(--accent);
+}
+
+.tag-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.tag-new {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+}
+
+.tag-new input {
+  background: var(--bg);
+}
+
+.tag-colors {
+  display: flex;
+  gap: 5px;
+}
+
+.tag-color {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  opacity: 0.55;
+}
+
+.tag-color:hover {
+  opacity: 0.85;
+}
+
+.tag-color.active {
+  opacity: 1;
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+/* Settings */
+
+.settings-open {
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-section p {
+  margin: 0;
+}
+
+.settings-section .muted {
+  font-size: 0.85rem;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-actions button:not(.primary) {
+  background: var(--hover);
+}
+
+.settings-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-tags li,
+.settings-tag-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-tags input,
+.settings-tag-new input {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.sticky-picker.above {
+  top: auto;
+  bottom: calc(100% + 6px);
+}

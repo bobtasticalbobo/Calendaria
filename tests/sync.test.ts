@@ -6,6 +6,7 @@ import type { SqlDriver } from "../src/db/driver";
 import { EventRepository } from "../src/db/events";
 import { NoteRepository } from "../src/db/notes";
 import { SettingsRepository } from "../src/db/settings";
+import { TagRepository } from "../src/db/tags";
 import { importIcs } from "../src/import/importCalendar";
 import { GistStore, SyncError } from "../src/sync/gist";
 import type { Snapshot } from "../src/sync/merge";
@@ -50,6 +51,7 @@ class Device {
   calendars = new CalendarRepository(this.db, clock);
   events = new EventRepository(this.db, clock);
   notes = new NoteRepository(this.db, clock);
+  tags = new TagRepository(this.db, clock);
 
   constructor(private readonly github: FakeGists) {}
 
@@ -178,6 +180,25 @@ describe("sync between devices", () => {
     await laptop.sync();
     await pc.sync();
     expect(await pc.eventTitles()).toEqual([]);
+  });
+
+  it("syncs tags on days and notes", async () => {
+    const exam = await laptop.tags.create({ name: "Exam", color: "#e06c75" });
+    const day = Temporal.PlainDate.from("2026-10-21");
+    await laptop.tags.setOnDay(day, exam.id, true);
+    await laptop.notes.create({ day, body: "Revise", tags: [exam.id] });
+    await laptop.sync();
+    await pc.sync();
+
+    expect(await pc.tags.onDays(day, day)).toEqual(new Map([["2026-10-21", [exam.id]]]));
+    const [note] = await pc.notes.listOnDays(day, day);
+    expect(note.tags).toEqual([exam.id]);
+
+    // Untagging on the PC reaches the laptop.
+    await pc.tags.setOnDay(day, exam.id, false);
+    await pc.sync();
+    await laptop.sync();
+    expect(await laptop.tags.onDays(day, day)).toEqual(new Map());
   });
 
   it("only writes to GitHub when something changed", async () => {

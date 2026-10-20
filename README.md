@@ -96,10 +96,23 @@ done by hand. The code lives in `src/time/`.
 
 Right-click a day and pick **Note** to stick a paper note on it. Notes fold down to a small square next to the day's number; click one to open it, and drag it onto another day to move it. A note can carry a reminder, which moves along with the note when you drag it to another day.
 
+## Tags
+
+Right-click a day and pick **Tags**, or open a note and click **Tags**, to tag
+it. A tagged day is tinted in its first tag's color with the tag names in its
+corner, and a tagged note gets a colored edge. Make, rename, recolor and
+delete tags under **Settings** at the bottom of the sidebar. Tags sync like
+everything else.
+
+## Settings
+
+**Settings** at the bottom of the sidebar shows the installed version with a
+**Check for updates** button, the sync setup, and your tags.
+
 ## Syncing between devices
 
 Calendaria keeps every device in step through a private gist on your GitHub
-account. To set it up, click **Sync with your other devices** in the sidebar,
+account. To set it up, open **Settings**, click **Sync with your other devices**,
 then **Make a key on GitHub**. That opens GitHub with a key that can only touch
 gists; choose *No expiration*, generate it, and paste it in. Do the same on
 each device with the same key. Each device finds the shared gist by its

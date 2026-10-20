@@ -14,12 +14,17 @@ export function useUpdate() {
   const [update, setUpdate] = useState<Update | null>(null);
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
     const look = () =>
       check()
-        .then(setUpdate)
+        .then((found) => {
+          setUpdate(found);
+          setCheckedAt(new Date());
+        })
         .catch((e) => console.warn("Update check failed", e));
     look();
     const timer = setInterval(look, CHECK_EVERY_MS);
@@ -44,5 +49,20 @@ export function useUpdate() {
     }
   };
 
-  return { update, installing, error, install };
+  /** Checks right away, for the button in Settings. */
+  const checkNow = async () => {
+    if (checking) return;
+    setError(null);
+    setChecking(true);
+    try {
+      setUpdate(await check());
+      setCheckedAt(new Date());
+    } catch (e) {
+      setError(`Couldn't check for updates: ${String(e)}`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return { update, installing, error, install, checking, checkedAt, checkNow };
 }
