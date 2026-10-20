@@ -40,6 +40,31 @@ Every table that will sync between devices has the same columns:
 Repositories in `src/db/` (for example `CalendarRepository`) are the only code
 that writes SQL. The UI talks to them, never to the database directly.
 
+## How dates and times work
+
+Date handling uses the [Temporal](https://tc39.es/proposal-temporal/docs/) API
+(via `temporal-polyfill`) and repeat rules use the iCalendar RRULE standard
+(via `rrule`), the same format Outlook and Google export. No date arithmetic is
+done by hand. The code lives in `src/time/`.
+
+- **Timed events** store their wall-clock time plus the time zone they were
+  entered in (e.g. 09:00 `Europe/Stockholm`). A weekly 9:00 meeting stays at
+  9:00 across daylight saving changes, and an event set in New York time moves
+  correctly in your calendar when the US and Europe change clocks on different
+  weeks.
+- **All-day events** are plain dates with no time zone, so a birthday is on the
+  same date wherever you are. Their end date is exclusive, as in iCalendar.
+- **Times that don't exist** (02:30 on a spring-forward night) move forward
+  past the gap; **times that happen twice** (fall-back night) use the first one.
+- **Monthly on the 29th–31st** skips months without that day, as the iCalendar
+  standard says. Events on the last day of a month can instead repeat "every
+  month on the last day".
+- **Reminders** show a system notification while Calendaria is running
+  (minimised is fine). Each check covers the time since the last one, so a
+  reminder that falls due while the computer sleeps appears when it wakes.
+
+`tests/recurrence.test.ts` covers these cases.
+
 ## Adding a schema change
 
 1. Add `src-tauri/migrations/NNNN_description.sql` with the next number.

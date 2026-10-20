@@ -19,6 +19,8 @@ export function migrationFiles(): string[] {
 /** In-memory SQLite with the app's real migrations applied. */
 export function createTestDriver(): SqlDriver {
   const db = new DatabaseSync(":memory:");
+  // sqlx, which tauri-plugin-sql uses, turns foreign keys on by default.
+  db.exec("PRAGMA foreign_keys = ON");
   for (const file of migrationFiles()) {
     db.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
   }
