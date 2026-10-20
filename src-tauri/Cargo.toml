@@ -1,6 +1,6 @@
 [package]
 name = "calendaria"
-version = "0.6.0"
+version = "0.6.1"
 description = "Calendaria: a local-first calendar and notes app"
 authors = ["Bobo"]
 edition = "2024"

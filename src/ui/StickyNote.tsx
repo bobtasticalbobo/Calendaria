@@ -3,7 +3,7 @@ import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatWeekday } from "./dates";
-import { startNoteDrag } from "./notes";
+import { notePaperStyle, startNoteDrag } from "./notes";
 import { TagLabels, TagPicker } from "./TagPicker";
 
 interface Props {
@@ -86,8 +86,8 @@ export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, on
   return (
     <div
       ref={ref}
-      className={`sticky paper-${note.color}${noteTags.length ? " has-tag" : ""}`}
-      style={{ left, top, width: WIDTH, ...(noteTags.length ? { "--tag": noteTags[0].color } : {}) } as React.CSSProperties}
+      className={`sticky paper-${note.color}`}
+      style={{ left, top, width: WIDTH, ...notePaperStyle(noteTags[0]) }}
     >
       <div
         className="sticky-bar"

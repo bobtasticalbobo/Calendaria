@@ -3,7 +3,7 @@ import { Temporal } from "../time/temporal";
 import { EventChip } from "./EventChip";
 import { formatWeekday } from "./dates";
 import { itemsOnDay } from "./layout";
-import { DayNotes, type NoteHandlers, dayTagStyle, noteDropTarget } from "./notes";
+import { DayNotes, type NoteHandlers, dayTagStyle, firstTag, noteDropTarget } from "./notes";
 import { TagLabels } from "./TagPicker";
 
 interface Props {
@@ -59,6 +59,7 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
                 key={item.event.id + item.occurrence.key}
                 item={item}
                 color={colorOf(item.event.calendarId)}
+                tag={firstTag(item.event.tags, notes.tag)}
                 zone={zone}
                 showTime
                 onSelect={onSelect}

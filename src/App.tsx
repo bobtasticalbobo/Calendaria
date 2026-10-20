@@ -433,7 +433,9 @@ export default function App() {
         <EventDialog
           target={dialog}
           calendars={calendars}
+          tags={tags}
           zone={zone}
+          onCreateTag={createTag}
           onSave={save}
           onDelete={remove}
           onClose={() => setDialog(null)}

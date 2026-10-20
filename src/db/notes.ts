@@ -6,6 +6,7 @@ import {
   type SyncedRecord,
   type SyncedRow,
   newId,
+  parseIdList,
   syncedFieldsFromRow,
   systemClock,
   toTimestamp,
@@ -60,17 +61,8 @@ function fromRow(row: NoteRow): Note {
       row.remind_local && row.remind_zone
         ? { at: Temporal.PlainDateTime.from(row.remind_local), timeZone: row.remind_zone }
         : null,
-    tags: parseTags(row.tags),
+    tags: parseIdList(row.tags),
   };
-}
-
-function parseTags(json: string): string[] {
-  try {
-    const tags: unknown = JSON.parse(json);
-    return Array.isArray(tags) ? tags.filter((t): t is string => typeof t === "string") : [];
-  } catch {
-    return [];
-  }
 }
 
 function validColor(color: string): NoteColor {

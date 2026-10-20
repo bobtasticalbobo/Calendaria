@@ -5,7 +5,7 @@ import { timingBounds } from "../time/timing";
 import { EventChip } from "./EventChip";
 import { formatTime, formatWeekday } from "./dates";
 import { itemsOnDay, layoutDay } from "./layout";
-import { DayNotes, type NoteHandlers, dayTagStyle, noteDropTarget } from "./notes";
+import { DayNotes, type NoteHandlers, dayTagStyle, firstTag, noteDropTarget } from "./notes";
 import { TagLabels } from "./TagPicker";
 
 interface Props {
@@ -78,6 +78,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
                 key={item.event.id + item.occurrence.key}
                 item={item}
                 color={colorOf(item.event.calendarId)}
+                tag={firstTag(item.event.tags, notes.tag)}
                 zone={zone}
                 showTime={false}
                 onSelect={onSelect}
@@ -108,14 +109,16 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
               ))}
               {layoutDay(timed, day, zone).map((s) => {
                 const { start, end } = timingBounds(s.item.occurrence.timing, zone);
+                const tag = firstTag(s.item.event.tags, notes.tag);
                 return (
                   <button
                     type="button"
                     key={s.item.event.id + s.item.occurrence.key}
-                    className="timegrid-event"
+                    className={tag ? "timegrid-event tagged-event" : "timegrid-event"}
                     style={
                       {
                         "--event-color": colorOf(s.item.event.calendarId),
+                        "--tag": tag?.color,
                         top: (s.startMinute / 60) * HOUR_HEIGHT,
                         height: ((s.endMinute - s.startMinute) / 60) * HOUR_HEIGHT - 2,
                         left: `${(s.column / s.columns) * 100}%`,

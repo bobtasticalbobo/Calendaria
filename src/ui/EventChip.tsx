@@ -1,24 +1,27 @@
 import type { EventOccurrence } from "../db/events";
+import type { Tag } from "../db/tags";
 import { timingBounds } from "../time/timing";
 import { formatTime } from "./dates";
 
 interface Props {
   item: EventOccurrence;
   color: string;
+  /** Tints the chip in the tag's color. */
+  tag?: Tag;
   zone: string;
   showTime: boolean;
   onSelect: (item: EventOccurrence) => void;
 }
 
 /** A one-line event in the month grid or the all-day row. */
-export function EventChip({ item, color, zone, showTime, onSelect }: Props) {
+export function EventChip({ item, color, tag, zone, showTime, onSelect }: Props) {
   const { timing } = item.occurrence;
   const title = item.event.title || "(No title)";
   return (
     <button
       type="button"
-      className={timing.allDay ? "chip chip-allday" : "chip"}
-      style={{ "--event-color": color } as React.CSSProperties}
+      className={(timing.allDay ? "chip chip-allday" : "chip") + (tag ? " tagged-event" : "")}
+      style={{ "--event-color": color, "--tag": tag?.color } as React.CSSProperties}
       onClick={(e) => {
         e.stopPropagation();
         onSelect(item);

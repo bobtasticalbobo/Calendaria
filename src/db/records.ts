@@ -33,6 +33,16 @@ export function toTimestamp(date: Date): string {
   return date.toISOString();
 }
 
+/** Reads a JSON array of ids, such as a tags column, ignoring anything malformed. */
+export function parseIdList(json: string): string[] {
+  try {
+    const ids: unknown = JSON.parse(json);
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export function syncedFieldsFromRow(row: SyncedRow): SyncedRecord {
   return {
     id: row.id,

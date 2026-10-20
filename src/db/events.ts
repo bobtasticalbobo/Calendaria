@@ -7,6 +7,7 @@ import {
   type SyncedRecord,
   type SyncedRow,
   newId,
+  parseIdList,
   syncedFieldsFromRow,
   systemClock,
   toTimestamp,
@@ -21,6 +22,8 @@ export interface CalendarEvent extends SyncedRecord {
   recurrence: Recurrence | null;
   /** Minutes before the start, ascending. */
   reminders: number[];
+  /** Tag ids, in the order they were added. */
+  tags: string[];
   /** Set for events imported from a calendar file; see `importEvent`. */
   sourceUid: string | null;
 }
@@ -36,6 +39,8 @@ export interface EventInput {
   /** Repeat rule; exdates are managed by the repository, so only the rule is taken. */
   rule?: string | null;
   reminders?: number[];
+  /** Left out, an existing event keeps its tags (so re-importing doesn't clear them). */
+  tags?: string[];
 }
 
 export interface EventOccurrence {
@@ -58,11 +63,12 @@ interface EventRow extends SyncedRow {
   exdates: string;
   reminders: string;
   source_uid: string | null;
+  tags: string;
 }
 
 const COLUMNS =
   "id, calendar_id, title, description, location, all_day, start_local, end_local, " +
-  "time_zone, start_utc, end_utc, rrule, exdates, reminders, created_at, updated_at, deleted_at, source_uid";
+  "time_zone, start_utc, end_utc, rrule, exdates, reminders, created_at, updated_at, deleted_at, source_uid, tags";
 
 /** Fixed-width UTC text, so stored instants compare correctly as strings. */
 function utcText(instant: Temporal.Instant): string {
@@ -96,6 +102,7 @@ function fromRow(row: EventRow): CalendarEvent {
     recurrence: row.rrule ? { rule: row.rrule, exdates: JSON.parse(row.exdates) } : null,
     reminders: JSON.parse(row.reminders),
     sourceUid: row.source_uid,
+    tags: parseIdList(row.tags),
   };
 }
 
@@ -264,7 +271,7 @@ export class EventRepository {
 
   private build(
     input: EventInput,
-    synced: SyncedRecord & { sourceUid?: string | null },
+    synced: SyncedRecord & { sourceUid?: string | null; tags?: string[] },
   ): CalendarEvent {
     validateTiming(input.timing);
     const event: CalendarEvent = {
@@ -277,6 +284,7 @@ export class EventRepository {
       recurrence: input.rule ? { rule: input.rule, exdates: [] } : null,
       reminders: validReminders(input.reminders ?? []),
       sourceUid: synced.sourceUid ?? null,
+      tags: [...new Set(input.tags ?? synced.tags ?? [])],
     };
     indexColumns(event); // Throws early on an unparseable rule.
     return event;
@@ -285,7 +293,7 @@ export class EventRepository {
   private async insert(event: CalendarEvent): Promise<void> {
     await this.db.execute(
       `INSERT INTO events (${COLUMNS})
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
       this.rowValues(event),
     );
   }
@@ -296,9 +304,9 @@ export class EventRepository {
     await this.db.execute(
       `UPDATE events SET calendar_id = $1, title = $2, description = $3, location = $4,
          all_day = $5, start_local = $6, end_local = $7, time_zone = $8, start_utc = $9,
-         end_utc = $10, rrule = $11, exdates = $12, reminders = $13, updated_at = $14
-       WHERE id = $15`,
-      [...fields, event.updatedAt, id],
+         end_utc = $10, rrule = $11, exdates = $12, reminders = $13, updated_at = $14, tags = $15
+       WHERE id = $16`,
+      [...fields, event.updatedAt, JSON.stringify(event.tags), id],
     );
   }
 
@@ -323,6 +331,7 @@ export class EventRepository {
       event.updatedAt,
       event.deletedAt,
       event.sourceUid,
+      JSON.stringify(event.tags),
     ];
   }
 }
