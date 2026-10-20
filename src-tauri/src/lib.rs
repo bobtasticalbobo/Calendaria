@@ -1,3 +1,5 @@
+mod updates;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Database file name, resolved by tauri-plugin-sql inside the app's data directory.
@@ -20,6 +22,18 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0002_events.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "event source uid",
+            sql: include_str!("../migrations/0003_event_source_uid.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "notes",
+            sql: include_str!("../migrations/0004_notes.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -33,6 +47,10 @@ pub fn run() {
                 .add_migrations(DB_URL, migrations())
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![
+            updates::check_local_update,
+            updates::install_local_update
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

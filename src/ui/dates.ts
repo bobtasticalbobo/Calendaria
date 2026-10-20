@@ -37,18 +37,32 @@ export function dayRange(days: Temporal.PlainDate[], zone: string) {
   };
 }
 
-export function viewTitle(mode: ViewMode, anchor: Temporal.PlainDate, locale?: string): string {
-  if (mode === "month") return anchor.toLocaleString(locale, { month: "long", year: "numeric" });
-  if (mode === "day") {
-    return anchor.toLocaleString(locale, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  }
+/**
+ * The app writes dates as day/month/year numbers and times on the 24-hour
+ * clock, whatever the computer's region settings say. British English gives
+ * exactly that and keeps weekday names in English.
+ */
+export const APP_LOCALE = "en-GB";
+
+/** 20/10/2026, or 20/10 without the year. */
+export function formatDate(date: Temporal.PlainDate, withYear = true): string {
+  return date.toLocaleString(APP_LOCALE, { day: "2-digit", month: "2-digit", ...(withYear && { year: "numeric" }) });
+}
+
+export function formatWeekday(date: Temporal.PlainDate, style: "short" | "long" = "short"): string {
+  return date.toLocaleString(APP_LOCALE, { weekday: style });
+}
+
+export function viewTitle(mode: ViewMode, anchor: Temporal.PlainDate): string {
+  if (mode === "month") return anchor.toLocaleString(APP_LOCALE, { month: "long", year: "numeric" });
+  if (mode === "day") return `${formatWeekday(anchor, "long")} ${formatDate(anchor)}`;
   const days = visibleDays("week", anchor);
   const first = days[0];
   const last = days[6];
-  const sameMonth = first.month === last.month;
-  return `${first.toLocaleString(locale, sameMonth ? { day: "numeric" } : { day: "numeric", month: "short" })} – ${last.toLocaleString(locale, { day: "numeric", month: "short", year: "numeric" })}`;
+  return `${formatDate(first, first.year !== last.year)} – ${formatDate(last)}`;
 }
 
-export function formatTime(time: Temporal.ZonedDateTime | Temporal.PlainTime, locale?: string): string {
-  return time.toLocaleString(locale, { hour: "numeric", minute: "2-digit" });
+/** 09:00, 14:30. */
+export function formatTime(time: Temporal.ZonedDateTime | Temporal.PlainTime): string {
+  return time.toLocaleString(APP_LOCALE, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }

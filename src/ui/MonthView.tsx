@@ -1,7 +1,9 @@
 import type { EventOccurrence } from "../db/events";
 import { Temporal } from "../time/temporal";
 import { EventChip } from "./EventChip";
+import { formatWeekday } from "./dates";
 import { itemsOnDay } from "./layout";
+import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
 
 interface Props {
   days: Temporal.PlainDate[];
@@ -12,17 +14,18 @@ interface Props {
   onSelect: (item: EventOccurrence) => void;
   onCreate: (day: Temporal.PlainDate) => void;
   onOpenDay: (day: Temporal.PlainDate) => void;
+  notes: NoteHandlers;
 }
 
 const MAX_PER_DAY = 4;
 
-export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreate, onOpenDay }: Props) {
+export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreate, onOpenDay, notes }: Props) {
   const today = Temporal.Now.plainDateISO(zone);
   return (
     <div className="month">
       {days.slice(0, 7).map((d) => (
         <div key={d.dayOfWeek} className="month-weekday">
-          {d.toLocaleString(undefined, { weekday: "short" })}
+          {formatWeekday(d)}
         </div>
       ))}
       {days.map((day) => {
@@ -33,10 +36,19 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
         if (day.month !== month) classes.push("other-month");
         if (day.equals(today)) classes.push("today");
         return (
-          <div key={day.toString()} className={classes.join(" ")} onDoubleClick={() => onCreate(day)}>
-            <button type="button" className="month-day-number" onClick={() => onOpenDay(day)}>
-              {day.day}
-            </button>
+          <div
+            key={day.toString()}
+            className={classes.join(" ")}
+            onDoubleClick={() => onCreate(day)}
+            onContextMenu={(e) => notes.menu(e, day)}
+            {...noteDropTarget(day, notes)}
+          >
+            <div className="month-day-head">
+              <button type="button" className="month-day-number" onClick={() => onOpenDay(day)}>
+                {day.day}
+              </button>
+              <DayNotes day={day} handlers={notes} />
+            </div>
             {dayItems.slice(0, hidden > 0 ? MAX_PER_DAY - 1 : MAX_PER_DAY).map((item) => (
               <EventChip
                 key={item.event.id + item.occurrence.key}

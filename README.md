@@ -10,6 +10,28 @@ Android) with sync between devices.
 - **SQLite** on the device via `tauri-plugin-sql`
 - **Vitest** tests that run against an in-memory SQLite database with the real migrations
 
+## Installing on Windows
+
+Every change merged to `main` is built for Windows by GitHub Actions and
+published on the repository's **Releases** page:
+
+- `Calendaria_<version>_x64-setup.exe` installs Calendaria with a Start menu
+  entry (recommended).
+- `Calendaria-portable.exe` runs without installing.
+
+The builds aren't code-signed yet, so Windows SmartScreen may warn the first
+time; choose *More info → Run anyway*. Windows 10 and 11 already include the
+WebView2 runtime the app needs.
+
+### Updating from a folder
+
+Calendaria also looks in `Documents\Calendaria\updates` when it starts. If
+there's an installer there newer than the running version (named like
+`Calendaria_0.3.0_x64-setup.exe`), the sidebar shows **Update and restart**,
+which installs it with just a progress bar and reopens the app. Your data is
+kept, since it lives separately in your user profile. Remember to bump the
+version in `tauri.conf.json`, `Cargo.toml` and `package.json` for each release.
+
 ## Getting started
 
 Install the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for
@@ -64,6 +86,30 @@ done by hand. The code lives in `src/time/`.
   reminder that falls due while the computer sleeps appears when it wakes.
 
 `tests/recurrence.test.ts` covers these cases.
+
+## Notes
+
+Right-click a day and pick **Note** to stick a paper note on it. Notes fold down to a small square next to the day's number; click one to open it, and drag it onto another day to move it. A note can carry a reminder, which moves along with the note when you drag it to another day.
+
+## Importing from Outlook
+
+Use **Import .ics file** in the sidebar. Events go into a calendar called
+"Outlook" (or the file's own calendar name), and importing a newer export of
+the same calendar updates those events instead of duplicating them. Events you
+deleted in Calendaria stay deleted.
+
+To get the file:
+
+- **Classic Outlook for Windows:** select your calendar, then *File → Save
+  Calendar*. Click *More Options*, set *Date Range* to *Whole calendar* and
+  *Detail* to *Full details*, then save.
+- **New Outlook / Outlook on the web:** *Settings → Calendar → Shared
+  calendars → Publish a calendar*, choose your calendar and *Can view all
+  details*, publish, then open the ICS link to download the file.
+
+Outlook's Windows time zone names (e.g. "W. Europe Standard Time") are mapped
+to standard zones. Repeating events keep their changed and deleted
+occurrences. Anything that can't be imported exactly is listed after the import.
 
 ## Adding a schema change
 

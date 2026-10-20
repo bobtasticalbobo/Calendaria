@@ -41,7 +41,7 @@ const REPEAT_LABELS: Record<RepeatFrequency, string> = {
 
 function reminderLabel(minutes: number): string {
   if (minutes === 0) return "At start time";
-  if (minutes % 10080 === 0) return `${minutes / 10080} week before`;
+  if (minutes % 10080 === 0) return `${minutes / 10080} week${minutes > 10080 ? "s" : ""} before`;
   if (minutes % 1440 === 0) return `${minutes / 1440} day${minutes > 1440 ? "s" : ""} before`;
   if (minutes % 60 === 0) return `${minutes / 60} hour${minutes > 60 ? "s" : ""} before`;
   return `${minutes} minutes before`;
@@ -308,7 +308,7 @@ export function EventDialog({ target, calendars, zone, onSave, onDelete, onClose
                   set({ reminders: form.reminders.map((m, j) => (j === i ? Number(e.target.value) : m)) })
                 }
               >
-                {REMINDER_OPTIONS.map((m) => (
+                {[...new Set([...REMINDER_OPTIONS, minutes])].sort((a, b) => a - b).map((m) => (
                   <option key={m} value={m}>
                     {reminderLabel(m)}
                   </option>

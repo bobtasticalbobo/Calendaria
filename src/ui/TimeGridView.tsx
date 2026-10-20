@@ -3,8 +3,9 @@ import type { EventOccurrence } from "../db/events";
 import { Temporal } from "../time/temporal";
 import { timingBounds } from "../time/timing";
 import { EventChip } from "./EventChip";
-import { formatTime } from "./dates";
+import { formatTime, formatWeekday } from "./dates";
 import { itemsOnDay, layoutDay } from "./layout";
+import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
 
 interface Props {
   days: Temporal.PlainDate[];
@@ -13,13 +14,21 @@ interface Props {
   colorOf: (calendarId: string) => string;
   onSelect: (item: EventOccurrence) => void;
   onCreate: (day: Temporal.PlainDate, time?: Temporal.PlainTime) => void;
+  notes: NoteHandlers;
 }
 
 const HOUR_HEIGHT = 48;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 
 /** The week and day views: an all-day row above a 24-hour grid. */
-export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate }: Props) {
+/** The half hour under the pointer in a day column. */
+function timeAt(e: React.MouseEvent<HTMLElement>): Temporal.PlainTime {
+  const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
+  const halfHours = Math.min(47, Math.max(0, Math.floor(y / (HOUR_HEIGHT / 2))));
+  return new Temporal.PlainTime(Math.floor(halfHours / 2), (halfHours % 2) * 30);
+}
+
+export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, notes }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const now = Temporal.Now.zonedDateTimeISO(zone);
   const today = now.toPlainDate();
@@ -37,14 +46,26 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate }:
       <div className="timegrid-header" style={columns}>
         <div />
         {days.map((day) => (
-          <div key={day.toString()} className={day.equals(today) ? "timegrid-dayname today" : "timegrid-dayname"}>
-            <span>{day.toLocaleString(undefined, { weekday: "short" })}</span>
+          <div
+            key={day.toString()}
+            className={day.equals(today) ? "timegrid-dayname today" : "timegrid-dayname"}
+            onContextMenu={(e) => notes.menu(e, day)}
+            {...noteDropTarget(day, notes)}
+          >
+            <span>{formatWeekday(day)}</span>
             <strong>{day.day}</strong>
+            <DayNotes day={day} handlers={notes} />
           </div>
         ))}
         <div className="timegrid-allday-label">all-day</div>
         {perDay.map(({ day, allDay }) => (
-          <div key={day.toString()} className="timegrid-allday" onDoubleClick={() => onCreate(day)}>
+          <div
+            key={day.toString()}
+            className="timegrid-allday"
+            onDoubleClick={() => onCreate(day)}
+            onContextMenu={(e) => notes.menu(e, day)}
+            {...noteDropTarget(day, notes)}
+          >
             {allDay.map((item) => (
               <EventChip
                 key={item.event.id + item.occurrence.key}
@@ -71,11 +92,9 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate }:
             <div
               key={day.toString()}
               className="timegrid-day"
-              onDoubleClick={(e) => {
-                const y = e.clientY - e.currentTarget.getBoundingClientRect().top;
-                const halfHours = Math.floor(y / (HOUR_HEIGHT / 2));
-                onCreate(day, new Temporal.PlainTime(Math.floor(halfHours / 2), (halfHours % 2) * 30));
-              }}
+              onDoubleClick={(e) => onCreate(day, timeAt(e))}
+              onContextMenu={(e) => notes.menu(e, day, timeAt(e))}
+              {...noteDropTarget(day, notes)}
             >
               {HOURS.map((h) => (
                 <div key={h} className="timegrid-line" style={{ top: h * HOUR_HEIGHT }} />
