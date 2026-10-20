@@ -2,6 +2,8 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 import { type Calendar, CalendarRepository } from "./db/calendars";
 import { type EventOccurrence, EventRepository } from "./db/events";
 import { type Note, type NoteInput, NoteRepository } from "./db/notes";
+import type { SqlDriver } from "./db/driver";
+import { SettingsRepository } from "./db/settings";
 import { openTauriDriver } from "./db/tauriDriver";
 import { type ImportSummary, importIcs } from "./import/importCalendar";
 import { Temporal } from "./time/temporal";
@@ -15,10 +17,14 @@ import type { NoteHandlers } from "./ui/notes";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
 import { useUpdate } from "./ui/useUpdate";
+import { useSync } from "./ui/useSync";
+import { SyncPanel } from "./ui/SyncPanel";
 import { useReminders } from "./ui/useReminders";
 import "./App.css";
 
 interface Repos {
+  db: SqlDriver;
+  settings: SettingsRepository;
   calendars: CalendarRepository;
   events: EventRepository;
   notes: NoteRepository;
@@ -50,7 +56,13 @@ export default function App() {
   const [importResult, setImportResult] = useState<ImportSummary | { error: string } | null>(null);
   // Bumped after every change so the visible range reloads.
   const [version, setVersion] = useState(0);
-  const changed = () => setVersion((v) => v + 1);
+  // Bumped after every change made here, so sync sends it to other devices.
+  const [edits, setEdits] = useState(0);
+  const edited = () => setEdits((n) => n + 1);
+  const changed = () => {
+    setVersion((v) => v + 1);
+    edited();
+  };
 
   useEffect(() => {
     if (!inTauri) {
@@ -61,7 +73,13 @@ export default function App() {
       const db = await openTauriDriver();
       const calendarRepo = new CalendarRepository(db);
       await calendarRepo.ensureDefault();
-      setRepos({ calendars: calendarRepo, events: new EventRepository(db), notes: new NoteRepository(db) });
+      setRepos({
+        db,
+        settings: new SettingsRepository(db),
+        calendars: calendarRepo,
+        events: new EventRepository(db),
+        notes: new NoteRepository(db),
+      });
     })().catch((e) => setError(String(e)));
   }, []);
 
@@ -85,6 +103,7 @@ export default function App() {
 
   useReminders(repos?.events ?? null, repos?.notes ?? null, zone);
   const appUpdate = useUpdate();
+  const sync = useSync(repos?.db ?? null, repos?.settings ?? null, edits, () => setVersion((v) => v + 1));
 
   const colorOf = useCallback(
     (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color ?? "#888888",
@@ -163,18 +182,21 @@ export default function App() {
   async function addNote(target: MenuTarget) {
     const note = await repos!.notes.create({ day: target.day });
     setNotes((current) => [...current, note]);
+    edited();
     setOpenNote({ id: note.id, anchor: new DOMRect(target.x, target.y, 0, 0) });
   }
 
   async function changeNote(id: string, patch: Partial<NoteInput>) {
     const updated = await repos!.notes.update(id, patch);
     setNotes((current) => current.map((n) => (n.id === id ? updated : n)));
+    edited();
   }
 
   async function removeNote(id: string) {
     setOpenNote(null);
     await repos!.notes.remove(id);
     setNotes((current) => current.filter((n) => n.id !== id));
+    edited();
   }
 
   const editingNote = openNote && notes.find((n) => n.id === openNote.id);
@@ -250,6 +272,7 @@ export default function App() {
             </button>
           </div>
         )}
+        <SyncPanel sync={sync} />
         {appUpdate.update && (
           <div className="update">
             <p>Version {appUpdate.update.version} is ready.</p>
