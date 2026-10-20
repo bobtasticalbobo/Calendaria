@@ -51,7 +51,11 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [dayTags, setDayTags] = useState<Map<string, string[]>>(new Map());
-  const [tagMenu, setTagMenu] = useState<{ x: number; y: number; day: Temporal.PlainDate } | null>(null);
+  const [tagMenu, setTagMenu] = useState<
+    | { x: number; y: number; kind: "day"; day: Temporal.PlainDate }
+    | { x: number; y: number; kind: "event"; eventId: string; tags: string[] }
+    | null
+  >(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openNote, setOpenNote] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
@@ -135,6 +139,11 @@ export default function App() {
       move: (id, day) => {
         setOpenNote(null);
         repos?.notes.moveToDay(id, day).then(changed, (e) => setError(String(e)));
+      },
+      eventMenu: (e, item) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setTagMenu({ x: e.clientX, y: e.clientY, kind: "event", eventId: item.event.id, tags: item.event.tags });
       },
       menu: (e, day, time) => {
         e.preventDefault();
@@ -237,6 +246,12 @@ export default function App() {
       return new Map(current).set(key, on ? [...ids, tagId] : ids);
     });
     repos!.tags.setOnDay(day, tagId, on).then(edited, (e) => setError(String(e)));
+  }
+
+  function setEventTag(eventId: string, current: string[], tagId: string, on: boolean) {
+    const tags = on ? [...current.filter((id) => id !== tagId), tagId] : current.filter((id) => id !== tagId);
+    setTagMenu((menu) => (menu?.kind === "event" ? { ...menu, tags } : menu));
+    repos!.events.setTags(eventId, tags).then(changed, (e) => setError(String(e)));
   }
 
   const editingNote = openNote && notes.find((n) => n.id === openNote.id);
@@ -387,19 +402,28 @@ export default function App() {
           items={[
             { label: "New event", onSelect: () => setDialog({ kind: "new", day: menu.day, time: menu.time }) },
             { label: "Note", onSelect: () => addNote(menu).catch((e) => setError(String(e))) },
-            { label: "Tags", onSelect: () => setTagMenu({ x: menu.x, y: menu.y, day: menu.day }) },
+            { label: "Tags", onSelect: () => setTagMenu({ x: menu.x, y: menu.y, kind: "day", day: menu.day }) },
           ]}
         />
       )}
 
       {tagMenu && (
         <Popover x={tagMenu.x} y={tagMenu.y} onClose={() => setTagMenu(null)}>
-          <TagPicker
-            tags={tags}
-            selected={dayTags.get(tagMenu.day.toString()) ?? []}
-            onCreate={createTag}
-            onToggle={(id, on) => setDayTag(tagMenu.day, id, on)}
-          />
+          {tagMenu.kind === "day" ? (
+            <TagPicker
+              tags={tags}
+              selected={dayTags.get(tagMenu.day.toString()) ?? []}
+              onCreate={createTag}
+              onToggle={(id, on) => setDayTag(tagMenu.day, id, on)}
+            />
+          ) : (
+            <TagPicker
+              tags={tags}
+              selected={tagMenu.tags}
+              onCreate={createTag}
+              onToggle={(id, on) => setEventTag(tagMenu.eventId, tagMenu.tags, id, on)}
+            />
+          )}
         </Popover>
       )}
 

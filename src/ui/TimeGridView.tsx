@@ -82,6 +82,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
                 zone={zone}
                 showTime={false}
                 onSelect={onSelect}
+                onMenu={notes.eventMenu}
               />
             ))}
           </div>
@@ -130,6 +131,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
                       onSelect(s.item);
                     }}
                     onDoubleClick={(e) => e.stopPropagation()}
+                    onContextMenu={(e) => notes.eventMenu(e, s.item)}
                   >
                     <strong>{s.item.event.title || "(No title)"}</strong>
                     <span>
