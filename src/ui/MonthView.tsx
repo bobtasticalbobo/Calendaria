@@ -1,6 +1,7 @@
 import type { EventOccurrence } from "../db/events";
 import { Temporal } from "../time/temporal";
 import { EventChip } from "./EventChip";
+import { formatWeekday } from "./dates";
 import { itemsOnDay } from "./layout";
 import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
 
@@ -24,7 +25,7 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
     <div className="month">
       {days.slice(0, 7).map((d) => (
         <div key={d.dayOfWeek} className="month-weekday">
-          {d.toLocaleString(undefined, { weekday: "short" })}
+          {formatWeekday(d)}
         </div>
       ))}
       {days.map((day) => {
