@@ -35,3 +35,5 @@ jobs:
       - run: mkdir -p dist
       - run: cargo check --locked
         working-directory: src-tauri
+      - run: cargo test --locked
+        working-directory: src-tauri

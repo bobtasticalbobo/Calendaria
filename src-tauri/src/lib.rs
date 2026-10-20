@@ -1,3 +1,5 @@
+mod updates;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Database file name, resolved by tauri-plugin-sql inside the app's data directory.
@@ -39,6 +41,10 @@ pub fn run() {
                 .add_migrations(DB_URL, migrations())
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![
+            updates::check_local_update,
+            updates::install_local_update
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

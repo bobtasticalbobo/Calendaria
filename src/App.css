@@ -208,6 +208,24 @@ button:hover {
   color: var(--muted);
 }
 
+.update {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 0.8rem;
+}
+
+.update p {
+  margin: 0 0 2px;
+}
+
+.update .link {
+  color: var(--accent);
+}
+
+.update + .zone-note {
+  margin-top: 12px;
+}
+
 .zone-note {
   margin-top: auto;
   font-size: 0.75rem;

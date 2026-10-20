@@ -23,6 +23,15 @@ The builds aren't code-signed yet, so Windows SmartScreen may warn the first
 time; choose *More info → Run anyway*. Windows 10 and 11 already include the
 WebView2 runtime the app needs.
 
+### Updating from a folder
+
+Calendaria also looks in `Documents\Calendaria\updates` when it starts. If
+there's an installer there newer than the running version (named like
+`Calendaria_0.3.0_x64-setup.exe`), the sidebar shows **Update and restart**,
+which installs it with just a progress bar and reopens the app. Your data is
+kept, since it lives separately in your user profile. Remember to bump the
+version in `tauri.conf.json`, `Cargo.toml` and `package.json` for each release.
+
 ## Getting started
 
 Install the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for

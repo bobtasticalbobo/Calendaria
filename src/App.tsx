@@ -10,6 +10,7 @@ import { MonthView } from "./ui/MonthView";
 import { TimeGridView } from "./ui/TimeGridView";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
+import { useLocalUpdate } from "./ui/useLocalUpdate";
 import { useReminders } from "./ui/useReminders";
 import "./App.css";
 
@@ -63,6 +64,7 @@ export default function App() {
   }, [repos, days, zone, version]);
 
   useReminders(repos?.events ?? null, zone);
+  const localUpdate = useLocalUpdate();
 
   const colorOf = useCallback(
     (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color ?? "#888888",
@@ -188,6 +190,15 @@ export default function App() {
             <button type="button" className="link" onClick={() => setImportResult(null)}>
               Dismiss
             </button>
+          </div>
+        )}
+        {localUpdate.update && (
+          <div className="update">
+            <p>Version {localUpdate.update.version} is ready.</p>
+            <button type="button" className="link" onClick={localUpdate.install}>
+              Update and restart
+            </button>
+            {localUpdate.error && <p className="error-text">{localUpdate.error}</p>}
           </div>
         )}
         <p className="zone-note">Times shown in {zone}</p>
