@@ -63,6 +63,7 @@ export function MonthView({ days, month, items, zone, colorOf, onSelect, onCreat
                 zone={zone}
                 showTime
                 onSelect={onSelect}
+                onMenu={notes.eventMenu}
               />
             ))}
             {hidden > 0 && (

@@ -13,7 +13,9 @@ describe("TagRepository", () => {
 
   beforeEach(() => {
     const db = createTestDriver();
-    tags = new TagRepository(db);
+    // A clock that moves on each read, so tags added one after another never share a timestamp.
+    let now = Date.parse("2026-10-20T12:00:00Z");
+    tags = new TagRepository(db, () => new Date((now += 1000)));
     notes = new NoteRepository(db);
   });
 

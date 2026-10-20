@@ -11,10 +11,11 @@ interface Props {
   zone: string;
   showTime: boolean;
   onSelect: (item: EventOccurrence) => void;
+  onMenu: (e: React.MouseEvent, item: EventOccurrence) => void;
 }
 
 /** A one-line event in the month grid or the all-day row. */
-export function EventChip({ item, color, tag, zone, showTime, onSelect }: Props) {
+export function EventChip({ item, color, tag, zone, showTime, onSelect, onMenu }: Props) {
   const { timing } = item.occurrence;
   const title = item.event.title || "(No title)";
   return (
@@ -26,6 +27,7 @@ export function EventChip({ item, color, tag, zone, showTime, onSelect }: Props)
         e.stopPropagation();
         onSelect(item);
       }}
+      onContextMenu={(e) => onMenu(e, item)}
       title={title}
     >
       {!timing.allDay && showTime && (

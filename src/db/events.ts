@@ -253,6 +253,15 @@ export class EventRepository {
     return detached;
   }
 
+  /** Replaces an event's tags; for a repeating event, every occurrence's. */
+  async setTags(id: string, tags: string[]): Promise<CalendarEvent> {
+    const event = await this.live(id);
+    event.tags = [...new Set(tags)];
+    event.updatedAt = toTimestamp(this.clock());
+    await this.write(event);
+    return event;
+  }
+
   /** Soft delete, leaving a tombstone for sync. */
   async remove(id: string): Promise<void> {
     const now = toTimestamp(this.clock());

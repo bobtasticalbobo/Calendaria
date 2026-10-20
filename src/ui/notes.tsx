@@ -1,3 +1,4 @@
+import type { EventOccurrence } from "../db/events";
 import type { Note } from "../db/notes";
 import type { Tag } from "../db/tags";
 import type { Temporal } from "../time/temporal";
@@ -10,6 +11,8 @@ export interface NoteHandlers {
   open: (note: Note, anchor: HTMLElement) => void;
   move: (id: string, day: Temporal.PlainDate) => void;
   menu: (e: React.MouseEvent, day: Temporal.PlainDate, time?: Temporal.PlainTime) => void;
+  /** Right-click on an event: pick its tags. */
+  eventMenu: (e: React.MouseEvent, item: EventOccurrence) => void;
 }
 
 export const NOTE_DRAG_TYPE = "application/x-calendaria-note";

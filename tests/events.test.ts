@@ -168,4 +168,13 @@ describe("EventRepository", () => {
     await events.update(created.id, input({ tags: [] }));
     expect((await events.get(created.id))!.tags).toEqual([]);
   });
+
+  it("sets an event's tags on their own", async () => {
+    const created = await events.create(input({ rule: "FREQ=WEEKLY", reminders: [10] }));
+    const tagged = await events.setTags(created.id, ["tag-a", "tag-a", "tag-b"]);
+    expect(tagged.tags).toEqual(["tag-a", "tag-b"]);
+    const read = await events.get(created.id);
+    expect(read).toMatchObject({ tags: ["tag-a", "tag-b"], reminders: [10], title: "Standup" });
+    expect(read!.recurrence?.rule).toBe("FREQ=WEEKLY");
+  });
 });
