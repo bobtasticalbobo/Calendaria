@@ -1,1 +1,4 @@
 *.ics -text
+# Migrations must be byte-identical on every build: the database stores a
+# checksum of each one and refuses to start if an applied migration changes.
+*.sql text eol=lf
