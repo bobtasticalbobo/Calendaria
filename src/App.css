@@ -377,6 +377,9 @@ button:hover {
 
 .timegrid-header {
   display: grid;
+  /* Leave room for the body's scrollbar so header columns line up with the hours below. */
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
   border-bottom: 1px solid var(--line);
 }
 
@@ -474,27 +477,10 @@ button:hover {
   color: var(--muted);
 }
 
-/* Today's column: tinted top to bottom, with an underlined header. */
-.timegrid-dayname.today {
-  background: color-mix(in srgb, var(--today) 14%, transparent);
-  box-shadow: inset 0 -2px 0 var(--today);
-}
-
-.timegrid-dayname.today.tagged {
-  background: color-mix(in srgb, var(--tag) 12%, color-mix(in srgb, var(--today) 10%, transparent));
-  box-shadow:
-    inset 0 2px 0 color-mix(in srgb, var(--tag) 70%, transparent),
-    inset 0 -2px 0 var(--today);
-}
-
+/* Today: the weekday name in the accent color, beside the date's pill. */
 .timegrid-dayname.today > span:first-child {
   color: var(--today);
   font-weight: 600;
-}
-
-.timegrid-allday.today,
-.timegrid-day.today {
-  background: color-mix(in srgb, var(--today) 6%, transparent);
 }
 
 .timegrid-now {
