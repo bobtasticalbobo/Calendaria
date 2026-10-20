@@ -24,8 +24,8 @@ WebView2 runtime the app needs.
 
 ### Updates
 
-Calendaria checks GitHub for a newer release when it starts and every half
-hour. When there is one, the sidebar shows **Update and restart**, which
+Calendaria checks GitHub for a newer release when it starts, every five
+minutes, and when its window comes back into focus. When there is one, the sidebar shows **Update and restart**, which
 downloads it, installs it with just a progress bar and reopens the app. Your
 data is kept, since it lives separately in your user profile.
 
