@@ -3,7 +3,7 @@ import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatWeekday } from "./dates";
-import { startNoteDrag } from "./notes";
+import { notePaperStyle, startNoteDrag } from "./notes";
 import { TagLabels, TagPicker } from "./TagPicker";
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   anchor: DOMRect;
   zone: string;
   tags: Tag[];
+  /** The first tag on the note's day, which colors the note unless it has its own. */
+  dayTag?: Tag;
   onCreateTag: (name: string, color: string) => Promise<Tag>;
   onChange: (patch: Partial<NoteInput>) => void;
   onDelete: () => void;
@@ -31,7 +33,7 @@ function defaultReminder(day: Temporal.PlainDate, zone: string): Temporal.PlainD
 }
 
 /** An open sticky note, placed beside the marker it was opened from. */
-export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, onDelete, onClose }: Props) {
+export function StickyNote({ note, anchor, zone, tags, dayTag, onCreateTag, onChange, onDelete, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [picking, setPicking] = useState(false);
   const noteTags = note.tags.map((id) => tags.find((t) => t.id === id)).filter((t): t is Tag => !!t);
@@ -86,8 +88,8 @@ export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, on
   return (
     <div
       ref={ref}
-      className={`sticky paper-${note.color}${noteTags.length ? " has-tag" : ""}`}
-      style={{ left, top, width: WIDTH, ...(noteTags.length ? { "--tag": noteTags[0].color } : {}) } as React.CSSProperties}
+      className={`sticky paper-${note.color}`}
+      style={{ left, top, width: WIDTH, ...notePaperStyle(noteTags[0] ?? dayTag) }}
     >
       <div
         className="sticky-bar"

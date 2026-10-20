@@ -68,7 +68,8 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
         {perDay.map(({ day, allDay }) => (
           <div
             key={day.toString()}
-            className="timegrid-allday"
+            className={"timegrid-allday" + dayTagStyle(notes.tagsOn(day)).className}
+            style={dayTagStyle(notes.tagsOn(day)).style}
             onDoubleClick={() => onCreate(day)}
             onContextMenu={(e) => notes.menu(e, day)}
             {...noteDropTarget(day, notes)}
@@ -98,7 +99,8 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
           {perDay.map(({ day, timed }) => (
             <div
               key={day.toString()}
-              className="timegrid-day"
+              className={"timegrid-day" + dayTagStyle(notes.tagsOn(day)).className}
+              style={dayTagStyle(notes.tagsOn(day)).style}
               onDoubleClick={(e) => onCreate(day, timeAt(e))}
               onContextMenu={(e) => notes.menu(e, day, timeAt(e))}
               {...noteDropTarget(day, notes)}

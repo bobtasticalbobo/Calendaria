@@ -99,8 +99,10 @@ Right-click a day and pick **Note** to stick a paper note on it. Notes fold down
 ## Tags
 
 Right-click a day and pick **Tags**, or open a note and click **Tags**, to tag
-it. A tagged day is tinted in its first tag's color with the tag names in its
-corner, and a tagged note gets a colored edge. Make, rename, recolor and
+it. A tagged day is tinted in its first tag's color, with the tag names in its
+corner, and so are the events and notes on it; in the week and day views the
+whole column is tinted. A note with its own tag takes that tag's color
+instead. Make, rename, recolor and
 delete tags under **Settings** at the bottom of the sidebar. Tags sync like
 everything else.
 

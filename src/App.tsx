@@ -422,6 +422,7 @@ export default function App() {
           anchor={openNote.anchor}
           zone={zone}
           tags={tags}
+          dayTag={noteHandlers.tagsOn(editingNote.day)[0]}
           onCreateTag={createTag}
           onChange={(patch) => changeNote(editingNote.id, patch).catch((e) => setError(String(e)))}
           onDelete={() => removeNote(editingNote.id).catch((e) => setError(String(e)))}

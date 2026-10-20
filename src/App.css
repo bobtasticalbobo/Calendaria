@@ -790,12 +790,24 @@ button:hover {
   text-overflow: ellipsis;
 }
 
-.note-marker.has-tag {
-  box-shadow: inset 0 -3px 0 var(--tag);
+/* Events and notes on a tagged day take the day's color. */
+
+.tagged .chip,
+.tagged .timegrid-event {
+  background: color-mix(in srgb, var(--tag) 34%, var(--bg));
 }
 
-.sticky.has-tag {
-  border-top: 4px solid var(--tag);
+.tagged .chip:hover,
+.tagged .timegrid-event:hover {
+  background: color-mix(in srgb, var(--tag) 44%, var(--bg));
+}
+
+.tagged .timegrid-event span {
+  color: color-mix(in srgb, var(--text) 70%, var(--tag));
+}
+
+.tagged .note-marker {
+  --paper: color-mix(in srgb, var(--tag) 60%, #f2efe6);
 }
 
 .sticky-tags {
@@ -971,4 +983,9 @@ button:hover {
 .sticky-picker.above {
   top: auto;
   bottom: calc(100% + 6px);
+}
+
+.timegrid-allday.tagged,
+.timegrid-day.tagged {
+  box-shadow: none;
 }

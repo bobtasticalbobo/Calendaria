@@ -47,7 +47,15 @@ export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers) 
   };
 }
 
-/** Class and style that tint a day in its first tag's color. */
+/** A note's paper turned toward a tag's color, kept light enough for dark text. */
+export function notePaperStyle(tag: Tag | undefined): React.CSSProperties | undefined {
+  return tag ? ({ "--paper": `color-mix(in srgb, ${tag.color} 60%, #f2efe6)` } as React.CSSProperties) : undefined;
+}
+
+/**
+ * Class and style that tint a day in its first tag's color. Events and notes
+ * inside pick the color up from the --tag variable.
+ */
 export function dayTagStyle(tags: Tag[]): { className: string; style?: React.CSSProperties } {
   if (!tags.length) return { className: "" };
   return { className: " tagged", style: { "--tag": tags[0].color } as React.CSSProperties };
@@ -60,13 +68,14 @@ export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers:
   return (
     <span className="day-notes">
       {notes.map((note) => {
+        // A note's own tag wins; otherwise it takes its day's color (see .tagged in App.css).
         const tag = note.tags.map(handlers.tag).find(Boolean);
         return (
           <button
             type="button"
             key={note.id}
-            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}${tag ? " has-tag" : ""}`}
-            style={tag ? ({ "--tag": tag.color } as React.CSSProperties) : undefined}
+            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}`}
+            style={notePaperStyle(tag)}
             title={noteTitle(note)}
             aria-label={`Note: ${noteTitle(note)}`}
             draggable
