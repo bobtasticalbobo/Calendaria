@@ -14,7 +14,9 @@
       {
         "title": "Calendaria",
         "width": 1100,
-        "height": 750
+        "height": 750,
+        "theme": "Dark",
+        "backgroundColor": "#111214"
       }
     ],
     "security": {
