@@ -87,6 +87,10 @@ done by hand. The code lives in `src/time/`.
 
 `tests/recurrence.test.ts` covers these cases.
 
+## Notes
+
+Right-click a day and pick **Note** to stick a paper note on it. Notes fold down to a small square next to the day's number; click one to open it, and drag it onto another day to move it. A note can carry a reminder, which moves along with the note when you drag it to another day.
+
 ## Importing from Outlook
 
 Use **Import .ics file** in the sidebar. Events go into a calendar called

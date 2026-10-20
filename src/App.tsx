@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { type Calendar, CalendarRepository } from "./db/calendars";
 import { type EventOccurrence, EventRepository } from "./db/events";
+import { type Note, type NoteInput, NoteRepository } from "./db/notes";
 import { openTauriDriver } from "./db/tauriDriver";
 import { type ImportSummary, importIcs } from "./import/importCalendar";
 import { Temporal } from "./time/temporal";
@@ -8,6 +9,9 @@ import { systemTimeZone } from "./time/timing";
 import { type DialogTarget, type EditScope, EventDialog } from "./ui/EventDialog";
 import { MonthView } from "./ui/MonthView";
 import { TimeGridView } from "./ui/TimeGridView";
+import { ContextMenu } from "./ui/ContextMenu";
+import { StickyNote } from "./ui/StickyNote";
+import type { NoteHandlers } from "./ui/notes";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
 import { useLocalUpdate } from "./ui/useLocalUpdate";
@@ -17,6 +21,14 @@ import "./App.css";
 interface Repos {
   calendars: CalendarRepository;
   events: EventRepository;
+  notes: NoteRepository;
+}
+
+interface MenuTarget {
+  x: number;
+  y: number;
+  day: Temporal.PlainDate;
+  time?: Temporal.PlainTime;
 }
 
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -27,6 +39,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [items, setItems] = useState<EventOccurrence[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [openNote, setOpenNote] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [mode, setMode] = useState<ViewMode>("month");
   const [anchor, setAnchor] = useState(() => Temporal.Now.plainDateISO(zone));
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
@@ -46,7 +61,7 @@ export default function App() {
       const db = await openTauriDriver();
       const calendarRepo = new CalendarRepository(db);
       await calendarRepo.ensureDefault();
-      setRepos({ calendars: calendarRepo, events: new EventRepository(db) });
+      setRepos({ calendars: calendarRepo, events: new EventRepository(db), notes: new NoteRepository(db) });
     })().catch((e) => setError(String(e)));
   }, []);
 
@@ -55,20 +70,44 @@ export default function App() {
   useEffect(() => {
     if (!repos) return;
     const { start, end } = dayRange(days, zone);
-    Promise.all([repos.calendars.list(), repos.events.occurrencesInRange(start, end, zone)])
-      .then(([cals, occurrences]) => {
+    Promise.all([
+      repos.calendars.list(),
+      repos.events.occurrencesInRange(start, end, zone),
+      repos.notes.listOnDays(days[0], days[days.length - 1]),
+    ])
+      .then(([cals, occurrences, dayNotes]) => {
         setCalendars(cals);
         setItems(occurrences);
+        setNotes(dayNotes);
       })
       .catch((e) => setError(String(e)));
   }, [repos, days, zone, version]);
 
-  useReminders(repos?.events ?? null, zone);
+  useReminders(repos?.events ?? null, repos?.notes ?? null, zone);
   const localUpdate = useLocalUpdate();
 
   const colorOf = useCallback(
     (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color ?? "#888888",
     [calendars],
+  );
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const noteHandlers = useMemo<NoteHandlers>(
+    () => ({
+      notesOn: (day) => notes.filter((n) => n.day.equals(day)),
+      open: (note, anchor) => setOpenNote({ id: note.id, anchor: anchor.getBoundingClientRect() }),
+      move: (id, day) => {
+        setOpenNote(null);
+        repos?.notes.moveToDay(id, day).then(changed, (e) => setError(String(e)));
+      },
+      menu: (e, day, time) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setMenu({ x: e.clientX, y: e.clientY, day, time });
+      },
+    }),
+    [notes, repos],
   );
 
   if (error) return <main className="centered error">{error}</main>;
@@ -120,6 +159,25 @@ export default function App() {
       changed();
     }
   }
+
+  async function addNote(target: MenuTarget) {
+    const note = await repos!.notes.create({ day: target.day });
+    setNotes((current) => [...current, note]);
+    setOpenNote({ id: note.id, anchor: new DOMRect(target.x, target.y, 0, 0) });
+  }
+
+  async function changeNote(id: string, patch: Partial<NoteInput>) {
+    const updated = await repos!.notes.update(id, patch);
+    setNotes((current) => current.map((n) => (n.id === id ? updated : n)));
+  }
+
+  async function removeNote(id: string) {
+    setOpenNote(null);
+    await repos!.notes.remove(id);
+    setNotes((current) => current.filter((n) => n.id !== id));
+  }
+
+  const editingNote = openNote && notes.find((n) => n.id === openNote.id);
 
   const openDay = (day: Temporal.PlainDate) => {
     setAnchor(day);
@@ -236,6 +294,7 @@ export default function App() {
             onSelect={(item) => setDialog({ kind: "edit", item })}
             onCreate={(day) => setDialog({ kind: "new", day })}
             onOpenDay={openDay}
+            notes={noteHandlers}
           />
         ) : (
           <TimeGridView
@@ -245,9 +304,34 @@ export default function App() {
             colorOf={colorOf}
             onSelect={(item) => setDialog({ kind: "edit", item })}
             onCreate={(day, time) => setDialog({ kind: "new", day, time })}
+            notes={noteHandlers}
           />
         )}
       </main>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          items={[
+            { label: "New event", onSelect: () => setDialog({ kind: "new", day: menu.day, time: menu.time }) },
+            { label: "Note", onSelect: () => addNote(menu).catch((e) => setError(String(e))) },
+          ]}
+        />
+      )}
+
+      {editingNote && openNote && (
+        <StickyNote
+          key={editingNote.id}
+          note={editingNote}
+          anchor={openNote.anchor}
+          zone={zone}
+          onChange={(patch) => changeNote(editingNote.id, patch).catch((e) => setError(String(e)))}
+          onDelete={() => removeNote(editingNote.id).catch((e) => setError(String(e)))}
+          onClose={() => setOpenNote(null)}
+        />
+      )}
 
       {dialog && (
         <EventDialog
