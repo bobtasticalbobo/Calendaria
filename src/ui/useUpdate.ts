@@ -2,12 +2,13 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { type Update, check } from "@tauri-apps/plugin-updater";
 import { useEffect, useState } from "react";
 
-const CHECK_EVERY_MS = 30 * 60_000;
+const CHECK_EVERY_MS = 5 * 60_000;
 
 /**
- * A newer version published as a GitHub release, checked at launch and every
- * half hour. Releases are signed, and the app only installs ones signed with
- * the key whose public half is in tauri.conf.json.
+ * A newer version published as a GitHub release, checked at launch, every
+ * five minutes, and whenever the window comes back into focus. Releases are
+ * signed, and the app only installs ones signed with the key whose public
+ * half is in tauri.conf.json.
  */
 export function useUpdate() {
   const [update, setUpdate] = useState<Update | null>(null);
@@ -22,7 +23,11 @@ export function useUpdate() {
         .catch((e) => console.warn("Update check failed", e));
     look();
     const timer = setInterval(look, CHECK_EVERY_MS);
-    return () => clearInterval(timer);
+    window.addEventListener("focus", look);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", look);
+    };
   }, []);
 
   const install = async () => {
