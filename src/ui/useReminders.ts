@@ -5,9 +5,11 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 import type { EventRepository } from "../db/events";
+import type { NoteRepository } from "../db/notes";
 import { MAX_REMINDER, dueReminders } from "../time/reminders";
 import { Temporal } from "../time/temporal";
 import { formatTime } from "./dates";
+import { noteTitle } from "./notes";
 
 const CHECK_EVERY_MS = 30_000;
 
@@ -23,9 +25,9 @@ function describe(minutesBefore: number): string {
  * Each check covers the time since the previous one, so a reminder that comes
  * due while the computer sleeps fires on wake instead of being lost.
  */
-export function useReminders(events: EventRepository | null, zone: string) {
+export function useReminders(events: EventRepository | null, notes: NoteRepository | null, zone: string) {
   useEffect(() => {
-    if (!events) return;
+    if (!events || !notes) return;
     let since = Temporal.Now.instant();
     let running = false;
 
@@ -36,8 +38,9 @@ export function useReminders(events: EventRepository | null, zone: string) {
         const now = Temporal.Now.instant();
         const occurrences = await events.occurrencesInRange(since, now.add(MAX_REMINDER), zone);
         const due = dueReminders(occurrences, since, now, zone);
+        const dueNotes = await notes.remindersDue(since, now);
         since = now;
-        if (due.length && !(await isPermissionGranted())) {
+        if ((due.length || dueNotes.length) && !(await isPermissionGranted())) {
           if ((await requestPermission()) !== "granted") return;
         }
         for (const reminder of due) {
@@ -45,6 +48,9 @@ export function useReminders(events: EventRepository | null, zone: string) {
             title: reminder.title || "(No title)",
             body: `${describe(reminder.minutesBefore)} · ${formatTime(reminder.start)}`,
           });
+        }
+        for (const note of dueNotes) {
+          sendNotification({ title: "Note", body: noteTitle(note) });
         }
       } catch (e) {
         console.error("Reminder check failed", e);
@@ -55,5 +61,5 @@ export function useReminders(events: EventRepository | null, zone: string) {
 
     const timer = setInterval(check, CHECK_EVERY_MS);
     return () => clearInterval(timer);
-  }, [events, zone]);
+  }, [events, notes, zone]);
 }
