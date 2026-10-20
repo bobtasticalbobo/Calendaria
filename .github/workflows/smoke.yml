@@ -1,0 +1,54 @@
+name: Launch check
+
+on:
+  push:
+    branches: ["claude/smoke-*"]
+
+jobs:
+  launch:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build this branch
+        shell: bash
+        run: npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Reproduce the laptop and check the fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $env:RUST_BACKTRACE = "1"
+          function Install($setup) { Start-Process $setup -ArgumentList "/S" -Wait }
+          function Launch($label) {
+            $exe = Get-ChildItem "$env:LOCALAPPDATA\Calendaria", "$env:ProgramFiles\Calendaria" -Filter calendaria.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+            $p = Start-Process $exe.FullName -PassThru -RedirectStandardError "$label.err"
+            Start-Sleep -Seconds 20
+            $p.Refresh()
+            $alive = -not $p.HasExited
+            Write-Host "== $label ($($exe.FullName)): running after 20s = $alive"
+            Get-Content "$label.err" -ErrorAction SilentlyContinue | Select-Object -First 15
+            Stop-Process -Name calendaria -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            return $alive
+          }
+          # 1. A Linux-built copy creates the database, like the ones on Bobo's PCs.
+          Install ".github\smoke\old-lf-setup.exe"
+          $old = Launch "old-linux-build"
+          # 2. The published release, built on Windows before the fix.
+          Invoke-WebRequest "https://github.com/${{ github.repository }}/releases/latest/download/latest.json" -OutFile latest.json
+          Invoke-WebRequest (Get-Content latest.json | ConvertFrom-Json).platforms."windows-x86_64".url -OutFile release-setup.exe
+          Install ".\release-setup.exe"
+          $release = Launch "published-release"
+          # 3. This branch's build, on the same existing database.
+          Install (Get-ChildItem src-tauri\target\release\bundle\nsis\*-setup.exe | Select-Object -First 1).FullName
+          $fixed = Launch "this-branch"
+          Write-Host "old=$old release=$release fixed=$fixed"
+          if (-not ($old -and $fixed)) { exit 1 }
