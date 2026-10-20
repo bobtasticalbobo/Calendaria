@@ -10,6 +10,8 @@
     "opener:default",
     "sql:default",
     "sql:allow-execute",
-    "notification:default"
+    "notification:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

@@ -14,7 +14,7 @@ import { StickyNote } from "./ui/StickyNote";
 import type { NoteHandlers } from "./ui/notes";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
-import { useLocalUpdate } from "./ui/useLocalUpdate";
+import { useUpdate } from "./ui/useUpdate";
 import { useReminders } from "./ui/useReminders";
 import "./App.css";
 
@@ -84,7 +84,7 @@ export default function App() {
   }, [repos, days, zone, version]);
 
   useReminders(repos?.events ?? null, repos?.notes ?? null, zone);
-  const localUpdate = useLocalUpdate();
+  const appUpdate = useUpdate();
 
   const colorOf = useCallback(
     (calendarId: string) => calendars.find((c) => c.id === calendarId)?.color ?? "#888888",
@@ -250,13 +250,13 @@ export default function App() {
             </button>
           </div>
         )}
-        {localUpdate.update && (
+        {appUpdate.update && (
           <div className="update">
-            <p>Version {localUpdate.update.version} is ready.</p>
-            <button type="button" className="link" onClick={localUpdate.install}>
-              Update and restart
+            <p>Version {appUpdate.update.version} is ready.</p>
+            <button type="button" className="link" onClick={appUpdate.install}>
+              {appUpdate.installing ? "Updating…" : "Update and restart"}
             </button>
-            {localUpdate.error && <p className="error-text">{localUpdate.error}</p>}
+            {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
           </div>
         )}
         <p className="zone-note">Times shown in {zone}</p>

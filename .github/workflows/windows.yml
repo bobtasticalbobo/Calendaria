@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -23,7 +23,9 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - run: npx tauri build --bundles nsis
+      # Update signing happens on release builds only (scripts/release.sh).
+      - shell: bash
+        run: npx tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Collect the app
         shell: bash
         run: |
@@ -34,11 +36,3 @@ jobs:
         with:
           name: Calendaria-windows
           path: out/*.exe
-      # Every build of main becomes a downloadable release.
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: Calendaria build ${{ github.run_number }}
-          make_latest: true
-          files: out/*.exe

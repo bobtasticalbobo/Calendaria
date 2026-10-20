@@ -12,25 +12,27 @@ Android) with sync between devices.
 
 ## Installing on Windows
 
-Every change merged to `main` is built for Windows by GitHub Actions and
-published on the repository's **Releases** page:
-
-- `Calendaria_<version>_x64-setup.exe` installs Calendaria with a Start menu
-  entry (recommended).
-- `Calendaria-portable.exe` runs without installing.
+Download `Calendaria_<version>_x64-setup.exe` from the newest release on the
+repository's **Releases** page and run it. It installs Calendaria with a Start
+menu entry, and from then on the app updates itself. Every pull request is also
+built by GitHub Actions, with the installer and a portable exe attached to the
+run as the `Calendaria-windows` artifact.
 
 The builds aren't code-signed yet, so Windows SmartScreen may warn the first
 time; choose *More info → Run anyway*. Windows 10 and 11 already include the
 WebView2 runtime the app needs.
 
-### Updating from a folder
+### Updates
 
-Calendaria also looks in `Documents\Calendaria\updates` when it starts. If
-there's an installer there newer than the running version (named like
-`Calendaria_0.3.0_x64-setup.exe`), the sidebar shows **Update and restart**,
-which installs it with just a progress bar and reopens the app. Your data is
-kept, since it lives separately in your user profile. Remember to bump the
-version in `tauri.conf.json`, `Cargo.toml` and `package.json` for each release.
+Calendaria checks GitHub for a newer release when it starts and every half
+hour. When there is one, the sidebar shows **Update and restart**, which
+downloads it, installs it with just a progress bar and reopens the app. Your
+data is kept, since it lives separately in your user profile.
+
+Releases are signed, and the app only installs ones signed with the updater
+key (its public half is in `tauri.conf.json`). To publish one, bump the
+version in `tauri.conf.json`, `Cargo.toml` and `package.json`, then run
+`TAURI_SIGNING_PRIVATE_KEY=<key> scripts/release.sh`.
 
 ## Getting started
 
