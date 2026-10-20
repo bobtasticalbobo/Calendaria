@@ -259,7 +259,11 @@ export default function App() {
             {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
           </div>
         )}
-        <p className="zone-note">Times shown in {zone}</p>
+        <p className="zone-note">
+          Times shown in {zone}
+          <br />
+          Version {__APP_VERSION__}
+        </p>
       </aside>
 
       <main className="content">
