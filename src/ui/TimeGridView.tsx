@@ -3,7 +3,7 @@ import type { EventOccurrence } from "../db/events";
 import { Temporal } from "../time/temporal";
 import { timingBounds } from "../time/timing";
 import { EventChip } from "./EventChip";
-import { formatTime } from "./dates";
+import { formatTime, formatWeekday } from "./dates";
 import { itemsOnDay, layoutDay } from "./layout";
 import { DayNotes, type NoteHandlers, noteDropTarget } from "./notes";
 
@@ -52,7 +52,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
             onContextMenu={(e) => notes.menu(e, day)}
             {...noteDropTarget(day, notes)}
           >
-            <span>{day.toLocaleString(undefined, { weekday: "short" })}</span>
+            <span>{formatWeekday(day)}</span>
             <strong>{day.day}</strong>
             <DayNotes day={day} handlers={notes} />
           </div>

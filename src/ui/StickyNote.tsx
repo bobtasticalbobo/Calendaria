@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import { Temporal } from "../time/temporal";
+import { formatDate, formatWeekday } from "./dates";
 import { startNoteDrag } from "./notes";
 
 interface Props {
@@ -88,7 +89,7 @@ export function StickyNote({ note, anchor, zone, onChange, onDelete, onClose }: 
         title="Drag onto a day to move this note"
       >
         <span className="sticky-day">
-          {note.day.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short" })}
+          {formatWeekday(note.day)} {formatDate(note.day)}
         </span>
         <span className="spacer" />
         {NOTE_COLORS.map((color) => (
