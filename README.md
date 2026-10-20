@@ -10,6 +10,19 @@ Android) with sync between devices.
 - **SQLite** on the device via `tauri-plugin-sql`
 - **Vitest** tests that run against an in-memory SQLite database with the real migrations
 
+## Installing on Windows
+
+Every change merged to `main` is built for Windows by GitHub Actions and
+published on the repository's **Releases** page:
+
+- `Calendaria_<version>_x64-setup.exe` installs Calendaria with a Start menu
+  entry (recommended).
+- `Calendaria-portable.exe` runs without installing.
+
+The builds aren't code-signed yet, so Windows SmartScreen may warn the first
+time; choose *More info → Run anyway*. Windows 10 and 11 already include the
+WebView2 runtime the app needs.
+
 ## Getting started
 
 Install the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for
