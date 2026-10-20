@@ -112,18 +112,29 @@ everything else.
 ## Syncing between devices
 
 Calendaria keeps every device in step through a private gist on your GitHub
-account. To set it up, open **Settings**, click **Sync with your other devices**,
-then **Make a key on GitHub**. That opens GitHub with a key that can only touch
-gists; choose *No expiration*, generate it, and paste it in. Do the same on
-each device with the same key. Each device finds the shared gist by its
-description, "Calendaria sync".
+account. To set it up, open **Settings**, click **Sync with your other
+devices**, then **Make a key on GitHub**. That opens GitHub with a key that can
+only touch gists; choose *No expiration*, generate it, and paste it in. Then
+choose a passphrase. Do the same on each device with the same key and the same
+passphrase.
+
+Everything is encrypted on the device before it is sent: AES-256-GCM, with
+the key derived from the passphrase by PBKDF2-SHA-256 (600,000 rounds). GitHub
+only ever stores the encrypted copy, so neither GitHub nor anyone who finds the
+gist can read it, and a wrong passphrase is refused rather than overwriting
+anything. The passphrase can't be recovered: if it is forgotten, stop syncing
+on every device and set sync up again with a new one (each device keeps its
+own data). The GitHub key and passphrase are stored in the app's database on
+each device.
 
 Devices sync at launch, every 30 seconds, when the window gains or loses
-focus, and a few seconds after each change. For each event, calendar or note,
-the newest change wins, and deletions spread like any other change.
+focus, and a few seconds after each change. For each event, calendar, note or
+tag, the newest change wins, and deletions spread like any other change.
 Calendars with the same name on two devices (such as each device's own
 "Personal") become one, and events both devices imported from the same
-Outlook file are kept once. The code is in `src/sync/`.
+Outlook file are kept once. Unencrypted copies left by versions before 0.6.0
+are merged in and then deleted from GitHub, history included. The code is in
+`src/sync/`.
 
 ## Importing from Outlook
 

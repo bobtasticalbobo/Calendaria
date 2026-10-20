@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SqlDriver } from "../db/driver";
 import type { SettingsRepository } from "../db/settings";
+import { WrongPassphraseError } from "../sync/crypto";
 import { SyncError } from "../sync/gist";
-import { TOKEN_KEY, connect as saveToken, disconnect as forget, syncOnce } from "../sync/sync";
+import {
+  NeedsPassphraseError,
+  PASSPHRASE_KEY,
+  TOKEN_KEY,
+  connect as save,
+  disconnect as forget,
+  setPassphrase as savePassphrase,
+  syncOnce,
+} from "../sync/sync";
 
 const SYNC_EVERY_MS = 30_000;
 /** Wait this long after a change before syncing it, so typing doesn't sync every key. */
@@ -20,6 +29,7 @@ export function useSync(
   onRemoteChange: () => void,
 ) {
   const [enabled, setEnabled] = useState(false);
+  const [needsPassphrase, setNeedsPassphrase] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +47,9 @@ export function useSync(
         if (await syncOnce(db, settings)) onChange.current();
         setLastSynced(new Date());
         setError(null);
+        setNeedsPassphrase(false);
       } catch (e) {
+        if (e instanceof NeedsPassphraseError || e instanceof WrongPassphraseError) setNeedsPassphrase(true);
         setError(e instanceof SyncError ? e.message : `Couldn't sync: ${String(e)}`);
       } finally {
         setSyncing(false);
@@ -48,7 +60,11 @@ export function useSync(
   }, [db, settings]);
 
   useEffect(() => {
-    settings?.get(TOKEN_KEY).then((token) => setEnabled(token !== null));
+    if (!settings) return;
+    Promise.all([settings.get(TOKEN_KEY), settings.get(PASSPHRASE_KEY)]).then(([token, passphrase]) => {
+      setEnabled(token !== null);
+      setNeedsPassphrase(token !== null && passphrase === null);
+    });
   }, [settings]);
 
   useEffect(() => {
@@ -70,19 +86,27 @@ export function useSync(
     return () => clearTimeout(timer);
   }, [enabled, localVersion, sync]);
 
-  const connect = async (token: string) => {
-    if (!settings || !token.trim()) return;
-    await saveToken(settings, token);
+  const connect = async (token: string, passphrase: string) => {
+    if (!settings || !token.trim() || !passphrase) return;
+    await save(settings, token, passphrase);
     setEnabled(true);
+  };
+
+  const setPassphrase = async (passphrase: string) => {
+    if (!settings || !passphrase) return;
+    await savePassphrase(settings, passphrase);
+    setNeedsPassphrase(false);
+    await sync();
   };
 
   const disconnect = async () => {
     if (!settings) return;
     await forget(settings);
     setEnabled(false);
+    setNeedsPassphrase(false);
     setLastSynced(null);
     setError(null);
   };
 
-  return { enabled, syncing, lastSynced, error, syncNow: sync, connect, disconnect };
+  return { enabled, needsPassphrase, syncing, lastSynced, error, syncNow: sync, connect, setPassphrase, disconnect };
 }

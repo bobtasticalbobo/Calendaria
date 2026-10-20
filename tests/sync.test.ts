@@ -8,37 +8,48 @@ import { NoteRepository } from "../src/db/notes";
 import { SettingsRepository } from "../src/db/settings";
 import { TagRepository } from "../src/db/tags";
 import { importIcs } from "../src/import/importCalendar";
-import { GistStore, SyncError } from "../src/sync/gist";
-import type { Snapshot } from "../src/sync/merge";
-import { connect, syncOnce } from "../src/sync/sync";
+import { ENCRYPTED_FILE, GistStore, PLAIN_FILE, SyncError } from "../src/sync/gist";
+import { syncDatabase } from "../src/sync/merge";
+import { connect, disconnect, syncOnce } from "../src/sync/sync";
 import { Temporal } from "../src/time/temporal";
 import { createTestDriver } from "./sqliteDriver";
 
 const ZONE = "Europe/Stockholm";
+const PASSPHRASE = "correct horse battery staple";
 const outlook = readFileSync(join(import.meta.dirname, "fixtures/outlook.ics"), "utf8");
 
-/** Stands in for GitHub: one account's gists, kept as JSON text like the real file. */
+/** Stands in for GitHub: one account's gists, each a map of file name to text. */
 class FakeGists {
-  gists = new Map<string, string>();
+  gists = new Map<string, Map<string, string>>();
   writes = 0;
+  private next = 1;
   store = () =>
     ({
-      find: async () => this.gists.keys().next().value ?? null,
-      create: async (s: Snapshot) => {
-        const id = `gist${this.gists.size + 1}`;
-        this.gists.set(id, JSON.stringify(s));
+      list: async () =>
+        [...this.gists].map(([id, files]) => ({ id, encrypted: files.has(ENCRYPTED_FILE) })),
+      create: async (name: string, content: string) => {
+        const id = `gist${this.next++}`;
+        this.gists.set(id, new Map([[name, content]]));
         return id;
       },
-      read: async (id: string) => {
-        const content = this.gists.get(id);
-        if (content === undefined) throw new SyncError("not found");
-        return JSON.parse(content) as Snapshot;
+      read: async (id: string, name: string) => {
+        const files = this.gists.get(id);
+        if (!files) throw new SyncError("not found");
+        return files.get(name) ?? null;
       },
-      write: async (id: string, s: Snapshot) => {
+      write: async (id: string, name: string, content: string) => {
         this.writes++;
-        this.gists.set(id, JSON.stringify(s));
+        this.gists.get(id)!.set(name, content);
+      },
+      remove: async (id: string) => {
+        this.gists.delete(id);
       },
     }) as unknown as GistStore;
+
+  /** Every file's text, as stored on "GitHub". */
+  allText(): string {
+    return [...this.gists.values()].flatMap((files) => [...files.values()]).join("\n");
+  }
 }
 
 /** Shared time across devices, moved forward a second at each read. */
@@ -55,9 +66,9 @@ class Device {
 
   constructor(private readonly github: FakeGists) {}
 
-  async start() {
+  async start(passphrase = PASSPHRASE) {
     await this.calendars.ensureDefault();
-    await connect(this.settings, "key");
+    await connect(this.settings, "key", passphrase);
     return this;
   }
 
@@ -209,6 +220,51 @@ describe("sync between devices", () => {
     await laptop.sync();
     await pc.sync();
     expect(github.writes).toBe(writes);
+  });
+
+  it("stores only encrypted data on GitHub", async () => {
+    const [personal] = await laptop.calendars.list();
+    await laptop.events.create(meeting(personal.id, "Dentist"));
+    await laptop.notes.create({ day: Temporal.PlainDate.from("2026-10-21"), body: "Bring card" });
+    await laptop.sync();
+
+    const text = github.allText();
+    expect(JSON.parse(text)).toMatchObject({ format: "calendaria-encrypted" });
+    expect(text).not.toContain("Dentist");
+    expect(text).not.toContain("Bring card");
+  });
+
+  it("refuses a different passphrase without touching the shared copy", async () => {
+    await laptop.events.create(meeting((await laptop.calendars.list())[0].id, "Private"));
+    await laptop.sync();
+    const before = github.allText();
+
+    const stranger = await new Device(github).start("wrong passphrase");
+    await expect(stranger.sync()).rejects.toThrow("passphrase doesn't match");
+    expect(github.allText()).toBe(before);
+    expect(await stranger.eventTitles()).toEqual([]);
+  });
+
+  it("moves an unencrypted copy from an older version into the encrypted one, then deletes it", async () => {
+    // What 0.4 and 0.5 wrote: the snapshot as plain JSON.
+    const old = new Device(github);
+    await old.calendars.ensureDefault();
+    await old.events.create(meeting((await old.calendars.list())[0].id, "From the old version"));
+    const { snapshot } = await syncDatabase(old.db, null, clock);
+    await github.store().create(PLAIN_FILE, JSON.stringify(snapshot));
+
+    await laptop.sync();
+    expect([...github.gists.values()].map((files) => [...files.keys()])).toEqual([[ENCRYPTED_FILE]]);
+    expect(github.allText()).not.toContain("From the old version");
+
+    await pc.sync();
+    expect(await pc.eventTitles()).toEqual(["From the old version"]);
+  });
+
+  it("asks for a passphrase on a device set up before encryption", async () => {
+    await disconnect(laptop.settings);
+    await laptop.settings.set("sync.token", "key");
+    await expect(laptop.sync()).rejects.toThrow("Choose a passphrase");
   });
 
   it("does nothing until a key is set", async () => {
