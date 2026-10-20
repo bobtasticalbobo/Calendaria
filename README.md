@@ -96,6 +96,22 @@ done by hand. The code lives in `src/time/`.
 
 Right-click a day and pick **Note** to stick a paper note on it. Notes fold down to a small square next to the day's number; click one to open it, and drag it onto another day to move it. A note can carry a reminder, which moves along with the note when you drag it to another day.
 
+## Syncing between devices
+
+Calendaria keeps every device in step through a private gist on your GitHub
+account. To set it up, click **Sync with your other devices** in the sidebar,
+then **Make a key on GitHub**. That opens GitHub with a key that can only touch
+gists; choose *No expiration*, generate it, and paste it in. Do the same on
+each device with the same key. Each device finds the shared gist by its
+description, "Calendaria sync".
+
+Devices sync at launch, every 30 seconds, when the window gains or loses
+focus, and a few seconds after each change. For each event, calendar or note,
+the newest change wins, and deletions spread like any other change.
+Calendars with the same name on two devices (such as each device's own
+"Personal") become one, and events both devices imported from the same
+Outlook file are kept once. The code is in `src/sync/`.
+
 ## Importing from Outlook
 
 Use **Import .ics file** in the sidebar. Events go into a calendar called

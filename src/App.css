@@ -732,3 +732,32 @@ button:hover {
   color: #2b2a26;
   background: rgb(0 0 0 / 0.08);
 }
+
+.sync-start {
+  margin-top: 8px;
+}
+
+.sync {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.sync p {
+  margin: 0;
+}
+
+.sync .add-calendar {
+  margin: 0;
+}
+
+.sync-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.link.accent {
+  color: var(--accent);
+}
