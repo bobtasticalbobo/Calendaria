@@ -47,6 +47,20 @@ export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers) 
   };
 }
 
+/** The first of `ids` that is a live tag; its color is the one shown. */
+export function firstTag(ids: string[], lookup: (id: string) => Tag | undefined): Tag | undefined {
+  for (const id of ids) {
+    const tag = lookup(id);
+    if (tag) return tag;
+  }
+  return undefined;
+}
+
+/** A note's paper, turned toward its tag's color but kept light enough for dark text. */
+export function notePaperStyle(tag: Tag | undefined): React.CSSProperties | undefined {
+  return tag ? ({ "--paper": `color-mix(in srgb, ${tag.color} 60%, #f2efe6)` } as React.CSSProperties) : undefined;
+}
+
 /** Class and style that tint a day in its first tag's color. */
 export function dayTagStyle(tags: Tag[]): { className: string; style?: React.CSSProperties } {
   if (!tags.length) return { className: "" };
@@ -60,13 +74,13 @@ export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers:
   return (
     <span className="day-notes">
       {notes.map((note) => {
-        const tag = note.tags.map(handlers.tag).find(Boolean);
+        const tag = firstTag(note.tags, handlers.tag);
         return (
           <button
             type="button"
             key={note.id}
-            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}${tag ? " has-tag" : ""}`}
-            style={tag ? ({ "--tag": tag.color } as React.CSSProperties) : undefined}
+            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}`}
+            style={notePaperStyle(tag)}
             title={noteTitle(note)}
             aria-label={`Note: ${noteTitle(note)}`}
             draggable

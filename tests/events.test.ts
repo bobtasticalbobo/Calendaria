@@ -158,4 +158,14 @@ describe("EventRepository", () => {
     expect(await keysBetween("2026-10-19T00:00Z", "2026-10-20T00:00Z")).toEqual([]);
     await expect(events.update(event.id, input())).rejects.toThrow(/not found/);
   });
+
+  it("stores an event's tags and keeps them when the input leaves them out", async () => {
+    const created = await events.create(input({ tags: ["tag-a", "tag-b", "tag-a"] }));
+    expect(created.tags).toEqual(["tag-a", "tag-b"]);
+    expect((await events.get(created.id))!.tags).toEqual(["tag-a", "tag-b"]);
+    await events.update(created.id, input({ title: "Renamed" }));
+    expect((await events.get(created.id))!.tags).toEqual(["tag-a", "tag-b"]);
+    await events.update(created.id, input({ tags: [] }));
+    expect((await events.get(created.id))!.tags).toEqual([]);
+  });
 });

@@ -790,14 +790,6 @@ button:hover {
   text-overflow: ellipsis;
 }
 
-.note-marker.has-tag {
-  box-shadow: inset 0 -3px 0 var(--tag);
-}
-
-.sticky.has-tag {
-  border-top: 4px solid var(--tag);
-}
-
 .sticky-tags {
   padding: 0 10px;
 }
@@ -971,4 +963,52 @@ button:hover {
 .sticky-picker.above {
   top: auto;
   bottom: calc(100% + 6px);
+}
+
+/* A tagged event is tinted in its tag's color; the calendar color stays as its edge or dot. */
+
+.chip.tagged-event,
+.timegrid-event.tagged-event {
+  background: color-mix(in srgb, var(--tag) 34%, var(--bg));
+}
+
+.chip.tagged-event:hover,
+.timegrid-event.tagged-event:hover {
+  background: color-mix(in srgb, var(--tag) 44%, var(--bg));
+}
+
+.timegrid-event.tagged-event span {
+  color: color-mix(in srgb, var(--text) 70%, var(--tag));
+}
+
+.event-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.event-tag {
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: var(--tag);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tag) 45%, transparent);
+}
+
+.event-tag.on {
+  color: var(--bg);
+  background: var(--tag);
+  font-weight: 600;
+}
+
+.event-tag.on:hover {
+  background: var(--tag);
+  filter: brightness(1.1);
+}
+
+.event-tag-new {
+  width: 110px;
+  padding: 2px 9px;
+  font-size: 0.8rem;
+  border-radius: 10px;
 }

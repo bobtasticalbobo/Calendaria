@@ -1,6 +1,7 @@
 import { type FormEvent, useMemo, useState } from "react";
 import type { Calendar } from "../db/calendars";
 import type { EventInput, EventOccurrence } from "../db/events";
+import { TAG_COLORS, type Tag } from "../db/tags";
 import { REMINDER_OPTIONS } from "../time/reminders";
 import {
   type RepeatChoice,
@@ -21,7 +22,9 @@ export type DialogTarget =
 interface Props {
   target: DialogTarget;
   calendars: Calendar[];
+  tags: Tag[];
   zone: string;
+  onCreateTag: (name: string, color: string) => Promise<Tag>;
   onSave: (input: EventInput, scope: EditScope) => Promise<void>;
   onDelete: (scope: EditScope) => Promise<void>;
   onClose: () => void;
@@ -66,6 +69,7 @@ interface FormState {
   timeZone: string;
   repeat: RepeatChoice;
   reminders: number[];
+  tags: string[];
 }
 
 function hhmm(t: Temporal.PlainTime | Temporal.PlainDateTime): string {
@@ -89,6 +93,7 @@ function initialState(target: DialogTarget, calendars: Calendar[], zone: string)
       timeZone: zone,
       repeat: { frequency: "none", end: { type: "never" } },
       reminders: [],
+      tags: [],
     };
   }
   const { event, occurrence } = target.item;
@@ -100,6 +105,7 @@ function initialState(target: DialogTarget, calendars: Calendar[], zone: string)
     description: event.description,
     repeat: parseRepeatRule(event.recurrence?.rule ?? null, event.timing.start instanceof Temporal.PlainDate ? event.timing.start : event.timing.start.toPlainDate()),
     reminders: event.reminders,
+    tags: event.tags,
   };
   if (t.allDay) {
     return {
@@ -140,8 +146,9 @@ function timingFromForm(f: FormState): EventTiming {
   };
 }
 
-export function EventDialog({ target, calendars, zone, onSave, onDelete, onClose }: Props) {
+export function EventDialog({ target, calendars, tags, zone, onCreateTag, onSave, onDelete, onClose }: Props) {
   const [form, setForm] = useState(() => initialState(target, calendars, zone));
+  const [newTag, setNewTag] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<null | "save" | "delete">(null);
   const set = (patch: Partial<FormState>) => setForm((f) => ({ ...f, ...patch }));
@@ -167,6 +174,7 @@ export function EventDialog({ target, calendars, zone, onSave, onDelete, onClose
       timing,
       rule: buildRepeatRule(form.repeat, ruleStart, form.allDay, editing?.event.recurrence?.rule ?? null),
       reminders: form.reminders,
+      tags: form.tags,
     };
   }
 
@@ -338,6 +346,43 @@ export function EventDialog({ target, calendars, zone, onSave, onDelete, onClose
             ))}
           </select>
         </label>
+
+        <div className="field">
+          Tags
+          <div className="event-tags">
+            {tags.map((tag) => {
+              const on = form.tags.includes(tag.id);
+              return (
+                <button
+                  type="button"
+                  key={tag.id}
+                  className={on ? "event-tag on" : "event-tag"}
+                  style={{ "--tag": tag.color } as React.CSSProperties}
+                  onClick={() => set({ tags: on ? form.tags.filter((t) => t !== tag.id) : [...form.tags, tag.id] })}
+                >
+                  {tag.name}
+                </button>
+              );
+            })}
+            <input
+              className="event-tag-new"
+              placeholder="New tag"
+              aria-label="New tag name"
+              value={newTag}
+              onChange={(e) => setNewTag(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                // Enter here makes the tag; it doesn't save the event.
+                e.preventDefault();
+                if (!newTag.trim()) return;
+                onCreateTag(newTag, TAG_COLORS[tags.length % TAG_COLORS.length]).then((tag) => {
+                  setForm((f) => ({ ...f, tags: [...f.tags, tag.id] }));
+                  setNewTag("");
+                });
+              }}
+            />
+          </div>
+        </div>
 
         <input placeholder="Location" value={form.location} onChange={(e) => set({ location: e.target.value })} />
         <textarea
