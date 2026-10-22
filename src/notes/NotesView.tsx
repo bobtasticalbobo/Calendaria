@@ -9,8 +9,10 @@ import {
 import type { NoteReminder, NoteReminderRepository } from "../db/noteReminders";
 import type { Note, NoteInput, NoteRepository } from "../db/notes";
 import type { Tag } from "../db/tags";
+import type { TaskFields, TaskPatch, TaskRepository, TaskTable } from "../db/tasks";
 import { Temporal } from "../time/temporal";
 import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
+import { Popover } from "../ui/TagPicker";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
 import { BellIcon, ChevronIcon, PinIcon, PlusIcon } from "../ui/icons";
 import { type EditorMode, PageEditor } from "./PageEditor";
@@ -25,11 +27,13 @@ import {
   searchPages,
   tagLookup,
 } from "./pages";
+import { daysLeft, describeDue, isVisible } from "./tasks";
 
 export interface NotesRepos {
   notes: NoteRepository;
   notebooks: NotebookRepository;
   reminders: NoteReminderRepository;
+  tasks: TaskRepository;
 }
 
 /** Where the notes view should go when opened from the calendar. */
@@ -93,6 +97,14 @@ export function NotesView(props: Props) {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [reloads, setReloads] = useState(0);
+  const [showDone, setShowDone] = useState<boolean>(() => readStored("notes.showDone", false));
+  const [deadline, setDeadline] = useState<{
+    table: TaskTable;
+    id: string;
+    x: number;
+    y: number;
+    value: Temporal.PlainDate | null;
+  } | null>(null);
   const search = useRef<HTMLInputElement>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
 
@@ -139,10 +151,23 @@ export function NotesView(props: Props) {
     store("notes.mode", m);
   };
 
-  const tree = useMemo(() => buildTree(notebooks, chapters, pages), [notebooks, chapters, pages]);
+  const now = Temporal.Now.instant();
+  const visible = (item: TaskFields) => isVisible(item, showDone, now);
+  const fullTree = useMemo(() => buildTree(notebooks, chapters, pages), [notebooks, chapters, pages]);
+  // Tasks ticked over a week ago drop out, with everything under them, unless completed tasks are shown.
+  const tree = fullTree
+    .filter((n) => visible(n.notebook))
+    .map((n) => ({
+      ...n,
+      chapters: n.chapters.filter((c) => visible(c.chapter)).map((c) => ({ ...c, pages: c.pages.filter(visible) })),
+    }));
+  const allItems: TaskFields[] = [...notebooks, ...chapters, ...pages];
+  const hasTasks = allItems.some((t) => t.task);
+  const hiddenDone = allItems.filter((t) => !isVisible(t, false, now)).length;
+  const today = Temporal.Now.plainDateISO(zone);
   const tag = useMemo(() => tagLookup(tags), [tags]);
   const page = pages.find((p) => p.id === selected) ?? null;
-  const pinned = pages.filter((p) => p.pinned);
+  const pinned = pages.filter((p) => p.pinned && visible(p));
   const hits = useMemo(() => searchPages(pages, query, (id) => tag(id)?.name), [pages, query, tag]);
   const reminded = useMemo(() => new Set(reminders.map((r) => r.noteId)), [reminders]);
 
@@ -301,13 +326,70 @@ export function NotesView(props: Props) {
     return () => document.removeEventListener("keydown", onKey);
   });
 
+  function setTask(table: TaskTable, id: string, patch: TaskPatch) {
+    repos.tasks.set(table, id, patch).then(changed, fail);
+  }
+
+  /** Right-click items that make something a task, tick it, or give it a deadline. */
+  const taskMenu = (table: TaskTable, item: TaskFields & { id: string }, x: number, y: number): MenuItem[] => {
+    const important = {
+      label: item.dueDay ? "Change deadline…" : "Make important…",
+      onSelect: () => setDeadline({ table, id: item.id, x, y, value: item.dueDay }),
+    };
+    if (!item.task)
+      return [{ label: "Make a task", onSelect: () => setTask(table, item.id, { task: true }) }, important];
+    return [
+      {
+        label: item.doneAt ? "Mark not done" : "Mark done",
+        onSelect: () => setTask(table, item.id, { done: !item.doneAt }),
+      },
+      important,
+      ...(item.dueDay ? [{ label: "Remove deadline", onSelect: () => setTask(table, item.id, { dueDay: null }) }] : []),
+      { label: "Not a task", onSelect: () => setTask(table, item.id, { task: false }) },
+    ];
+  };
+
+  const taskBox = (table: TaskTable, item: TaskFields & { id: string }) =>
+    item.task && (
+      <input
+        type="checkbox"
+        className="tree-check"
+        checked={!!item.doneAt}
+        aria-label="Done"
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onChange={() => setTask(table, item.id, { done: !item.doneAt })}
+      />
+    );
+
+  const dueBadge = (item: TaskFields) =>
+    item.dueDay &&
+    !item.doneAt && (
+      <span
+        className={
+          daysLeft(item.dueDay, today) < 0
+            ? "tree-due late"
+            : daysLeft(item.dueDay, today) === 0
+              ? "tree-due today"
+              : "tree-due"
+        }
+        title={`Important: ${describeDue(item.dueDay, today)}`}
+      >
+        {formatDate(item.dueDay, item.dueDay.year !== today.year)}
+      </span>
+    );
+
+  const doneClass = (item: TaskFields) => (item.doneAt ? " done" : "");
+
   const toggle = (id: string) => setCollapsed((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
 
   const pageRow = (p: Note, chapterId?: string) => (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       key={p.id}
-      className={p.id === selected && view.kind === "page" ? "tree-page active" : "tree-page"}
+      className={(p.id === selected && view.kind === "page" ? "tree-page active" : "tree-page") + doneClass(p)}
+      onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && open(p.id)}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData(PAGE_DRAG, p.id);
@@ -322,6 +404,7 @@ export function NotesView(props: Props) {
           x: e.clientX,
           y: e.clientY,
           items: [
+            ...taskMenu("notes", p, e.clientX, e.clientY),
             { label: p.pinned ? "Unpin" : "Pin", onSelect: () => changePage(p.id, { pinned: !p.pinned }).catch(fail) },
             ...(p.day ? [{ label: "Show in calendar", onSelect: () => props.onShowDay(p.day!) }] : []),
             { label: "Move to trash", onSelect: () => trashPage(p.id).catch(fail) },
@@ -330,10 +413,12 @@ export function NotesView(props: Props) {
       }}
       title={pageTitle(p)}
     >
+      {taskBox("notes", p)}
       <span className="tree-title">{pageTitle(p)}</span>
+      {dueBadge(p)}
       {reminded.has(p.id) && <BellIcon />}
       {p.pinned && !chapterId && <PinIcon filled />}
-    </button>
+    </div>
   );
 
   const nameInput = (id: string, kind: "notebook" | "chapter", name: string) => (
@@ -393,6 +478,19 @@ export function NotesView(props: Props) {
             </>
           ) : (
             <>
+              {hasTasks && (
+                <label className="show-done" title="Tasks ticked more than a week ago are hidden unless this is on">
+                  <input
+                    type="checkbox"
+                    checked={showDone}
+                    onChange={(e) => {
+                      setShowDone(e.target.checked);
+                      store("notes.showDone", e.target.checked);
+                    }}
+                  />
+                  Completed tasks{hiddenDone > 0 && !showDone ? ` (${hiddenDone} hidden)` : ""}
+                </label>
+              )}
               {pinned.length > 0 && (
                 <div className="tree-group">
                   <h2>Pinned</h2>
@@ -404,7 +502,7 @@ export function NotesView(props: Props) {
                 return (
                   <div key={notebook.id} className="tree-notebook">
                     <div
-                      className="tree-row notebook-row"
+                      className={"tree-row notebook-row" + doneClass(notebook)}
                       onClick={() => toggle(notebook.id)}
                       onDoubleClick={() => setRenaming(notebook.id)}
                       onContextMenu={(e) => {
@@ -414,6 +512,7 @@ export function NotesView(props: Props) {
                           x: e.clientX,
                           y: e.clientY,
                           items: [
+                            ...taskMenu("notebooks", notebook, e.clientX, e.clientY),
                             { label: "New chapter", onSelect: () => newChapter(notebook.id).catch(fail) },
                             { label: "Rename", onSelect: () => setRenaming(notebook.id) },
                             ...(notebook.id === DEFAULT_NOTEBOOK_ID
@@ -436,11 +535,13 @@ export function NotesView(props: Props) {
                     >
                       <ChevronIcon open={nbOpen} />
                       <span className="swatch" style={{ background: notebook.color }} />
+                      {taskBox("notebooks", notebook)}
                       {renaming === notebook.id ? (
                         nameInput(notebook.id, "notebook", notebook.name)
                       ) : (
                         <span className="tree-title">{notebook.name}</span>
                       )}
+                      {dueBadge(notebook)}
                       <button
                         type="button"
                         className="tree-add"
@@ -460,7 +561,7 @@ export function NotesView(props: Props) {
                         return (
                           <div key={chapter.id} className="tree-chapter">
                             <div
-                              className="tree-row chapter-row"
+                              className={"tree-row chapter-row" + doneClass(chapter)}
                               draggable
                               onDragStart={(e) => {
                                 e.dataTransfer.setData(CHAPTER_DRAG, chapter.id);
@@ -475,6 +576,7 @@ export function NotesView(props: Props) {
                                   x: e.clientX,
                                   y: e.clientY,
                                   items: [
+                                    ...taskMenu("chapters", chapter, e.clientX, e.clientY),
                                     { label: "New page", onSelect: () => newPage(chapter.id).catch(fail) },
                                     { label: "Rename", onSelect: () => setRenaming(chapter.id) },
                                     ...(chapter.id === DEFAULT_CHAPTER_ID
@@ -498,11 +600,13 @@ export function NotesView(props: Props) {
                               )}
                             >
                               <ChevronIcon open={chOpen} />
+                              {taskBox("chapters", chapter)}
                               {renaming === chapter.id ? (
                                 nameInput(chapter.id, "chapter", chapter.name)
                               ) : (
                                 <span className="tree-title">{chapter.name}</span>
                               )}
+                              {dueBadge(chapter)}
                               <span className="tree-count">{chPages.length || ""}</span>
                               <button
                                 type="button"
@@ -643,6 +747,60 @@ export function NotesView(props: Props) {
       </main>
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={closeMenu} />}
+
+      {deadline && (
+        <Popover x={deadline.x} y={deadline.y} onClose={() => setDeadline(null)}>
+          <div className="deadline">
+            <strong>Must be done by</strong>
+            <p className="muted">From that day on you'll be asked if it's done, more often the later it gets.</p>
+            <div className="deadline-quick">
+              {[
+                ["Today", today],
+                ["Tomorrow", today.add({ days: 1 })],
+                ["In a week", today.add({ weeks: 1 })],
+              ].map(([label, day]) => (
+                <button
+                  type="button"
+                  key={label as string}
+                  onClick={() => {
+                    setTask(deadline.table, deadline.id, { dueDay: day as Temporal.PlainDate });
+                    setDeadline(null);
+                  }}
+                >
+                  {label as string}
+                </button>
+              ))}
+            </div>
+            <DateField
+              value={deadline.value}
+              onSet={(day) => {
+                setTask(deadline.table, deadline.id, { dueDay: day });
+                setDeadline(null);
+              }}
+            />
+          </div>
+        </Popover>
+      )}
     </>
+  );
+}
+
+/** A date field with a Set button, so a half-typed year isn't saved. */
+function DateField({ value, onSet }: { value: Temporal.PlainDate | null; onSet: (day: Temporal.PlainDate) => void }) {
+  const [text, setText] = useState(value?.toString() ?? "");
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(text) ? Temporal.PlainDate.from(text) : null;
+  return (
+    <form
+      className="deadline-pick"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (day) onSet(day);
+      }}
+    >
+      <input type="date" aria-label="Deadline" autoFocus value={text} onChange={(e) => setText(e.target.value)} />
+      <button type="submit" className="link accent" disabled={!day}>
+        Set
+      </button>
+    </form>
   );
 }

@@ -22,7 +22,14 @@ import {
 import { Temporal } from "../src/time/temporal";
 
 const date = Temporal.PlainDate.from;
-const synced = { createdAt: "2026-10-22T00:00:00.000Z", updatedAt: "2026-10-22T00:00:00.000Z", deletedAt: null };
+const synced = {
+  createdAt: "2026-10-22T00:00:00.000Z",
+  updatedAt: "2026-10-22T00:00:00.000Z",
+  deletedAt: null,
+  task: false,
+  doneAt: null,
+  dueDay: null,
+};
 
 function page(id: string, body: string, extra: Partial<Note> = {}): Note {
   return {

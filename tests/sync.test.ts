@@ -7,6 +7,7 @@ import { EventRepository } from "../src/db/events";
 import { NotebookRepository } from "../src/db/notebooks";
 import { NoteReminderRepository } from "../src/db/noteReminders";
 import { NoteRepository } from "../src/db/notes";
+import { TaskRepository } from "../src/db/tasks";
 import { SettingsRepository } from "../src/db/settings";
 import { TagRepository } from "../src/db/tags";
 import { importIcs } from "../src/import/importCalendar";
@@ -66,6 +67,7 @@ class Device {
   notes = new NoteRepository(this.db, clock);
   notebooks = new NotebookRepository(this.db, clock);
   reminders = new NoteReminderRepository(this.db, clock);
+  tasks = new TaskRepository(this.db, clock);
   tags = new TagRepository(this.db, clock);
 
   constructor(private readonly github: FakeGists) {}
@@ -147,6 +149,20 @@ describe("sync between devices", () => {
     await laptop.sync();
     expect((await laptop.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Notebook"]);
     expect(await laptop.reminders.list()).toEqual([]);
+  });
+
+  it("brings tasks, deadlines and ticks across", async () => {
+    const page = await laptop.notes.create({ body: "Tankhead" });
+    await laptop.tasks.set("notes", page.id, { dueDay: Temporal.PlainDate.from("2026-10-30") });
+    await laptop.sync();
+    await pc.sync();
+    expect((await pc.tasks.openImportant()).map((t) => t.id)).toEqual([page.id]);
+
+    await pc.tasks.set("notes", page.id, { done: true });
+    await pc.sync();
+    await laptop.sync();
+    expect(await laptop.tasks.openImportant()).toEqual([]);
+    expect((await laptop.notes.get(page.id))!.doneAt).not.toBeNull();
   });
 
   it("merges each device's own Personal calendar into one", async () => {

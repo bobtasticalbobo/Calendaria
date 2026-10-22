@@ -1683,3 +1683,142 @@ button:hover {
 .date-menu .row span {
   white-space: nowrap;
 }
+
+/* Tasks in the notes tree */
+
+.tree-check {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tree-row.done > .tree-title,
+.tree-page.done > .tree-title {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+.tree-due {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.tree-due.today {
+  color: #e5a35b;
+  background: color-mix(in srgb, #e5a35b 16%, transparent);
+}
+
+.tree-due.late {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.show-done {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.show-done input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.deadline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.deadline p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.deadline-quick {
+  display: flex;
+  gap: 4px;
+}
+
+.deadline-quick button {
+  padding: 3px 8px;
+  background: var(--hover);
+}
+
+.deadline-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.deadline-pick input {
+  flex: 1;
+  background: var(--bg);
+}
+
+/* "Is this done?" cards for important tasks */
+
+.task-nags {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+}
+
+.task-nag {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+}
+
+.task-nag p {
+  margin: 0;
+}
+
+.task-nag-q {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.task-nag-title {
+  display: block;
+  margin: 4px 0 2px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.task-nag-due {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.task-nag-due.late {
+  color: var(--danger);
+}
+
+.task-nag-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
