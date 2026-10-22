@@ -1997,3 +1997,38 @@ button:hover {
   cursor: default;
   color: var(--muted);
 }
+
+.recolor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.custom-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.custom-color input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.custom-color .link {
+  margin-left: auto;
+}
+
+.swatch-button {
+  cursor: pointer;
+}
+
+.swatch-button:hover {
+  transform: scale(1.5);
+}

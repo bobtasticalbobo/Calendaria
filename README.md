@@ -115,6 +115,7 @@ rendered, with checklists you can tick.
 - **Finding things.** Search (Ctrl+K) matches every word in titles, text and
   tag names. Pin pages to keep them at the top. Drag pages between chapters
   and chapters between notebooks. Deleted pages stay in the trash for 30 days.
+  Click a notebook's dot (or right-click it, **Colour…**) to change its colour.
 - **Keys.** Ctrl+N new page, Ctrl+Enter tick a checklist item, Tab and
   Shift+Tab indent, Ctrl+B and Ctrl+I bold and italic. Enter continues a list.
 
