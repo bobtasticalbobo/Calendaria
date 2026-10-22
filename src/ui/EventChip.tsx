@@ -2,6 +2,7 @@ import type { EventOccurrence } from "../db/events";
 import type { Tag } from "../db/tags";
 import { timingBounds } from "../time/timing";
 import { formatTime } from "./dates";
+import { inkOn } from "./ink";
 
 interface Props {
   item: EventOccurrence;
@@ -22,7 +23,13 @@ export function EventChip({ item, color, tag, zone, showTime, onSelect, onMenu }
     <button
       type="button"
       className={(timing.allDay ? "chip chip-allday" : "chip") + (tag ? " tagged-event" : "")}
-      style={{ "--event-color": color, "--tag": tag?.color } as React.CSSProperties}
+      style={
+        {
+          "--event-color": color,
+          "--tag": tag?.color,
+          "--event-ink": inkOn(tag?.color ?? color),
+        } as React.CSSProperties
+      }
       onClick={(e) => {
         e.stopPropagation();
         onSelect(item);
@@ -30,9 +37,7 @@ export function EventChip({ item, color, tag, zone, showTime, onSelect, onMenu }
       onContextMenu={(e) => onMenu(e, item)}
       title={title}
     >
-      {!timing.allDay && showTime && (
-        <span className="chip-time">{formatTime(timingBounds(timing, zone).start)}</span>
-      )}
+      {!timing.allDay && showTime && <span className="chip-time">{formatTime(timingBounds(timing, zone).start)}</span>}
       <span className="chip-title">{title}</span>
     </button>
   );

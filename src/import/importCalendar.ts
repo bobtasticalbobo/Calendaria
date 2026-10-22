@@ -12,7 +12,7 @@ export interface ImportSummary {
 }
 
 const DEFAULT_NAME = "Outlook";
-const IMPORT_COLOR = "#bb9af7";
+const IMPORT_COLOR = "#a36bff";
 
 /**
  * Imports an .ics file into a calendar named after it (or "Outlook"),

@@ -4,6 +4,7 @@ import { Temporal } from "../time/temporal";
 import { timingBounds } from "../time/timing";
 import { EventChip } from "./EventChip";
 import { formatTime, formatWeekday } from "./dates";
+import { inkOn } from "./ink";
 import { itemsOnDay, layoutDay } from "./layout";
 import { DayNotes, type NoteHandlers, dayTagStyle, firstTag, noteDropTarget } from "./notes";
 import { TagLabels } from "./TagPicker";
@@ -120,6 +121,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
                       {
                         "--event-color": colorOf(s.item.event.calendarId),
                         "--tag": tag?.color,
+                        "--event-ink": inkOn(tag?.color ?? colorOf(s.item.event.calendarId)),
                         top: (s.startMinute / 60) * HOUR_HEIGHT,
                         height: ((s.endMinute - s.startMinute) / 60) * HOUR_HEIGHT - 2,
                         left: `${(s.column / s.columns) * 100}%`,
@@ -141,10 +143,7 @@ export function TimeGridView({ days, items, zone, colorOf, onSelect, onCreate, n
                 );
               })}
               {day.equals(today) && (
-                <div
-                  className="timegrid-now"
-                  style={{ top: ((now.hour * 60 + now.minute) / 60) * HOUR_HEIGHT }}
-                />
+                <div className="timegrid-now" style={{ top: ((now.hour * 60 + now.minute) / 60) * HOUR_HEIGHT }} />
               )}
             </div>
           ))}

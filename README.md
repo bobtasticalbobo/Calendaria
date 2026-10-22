@@ -10,6 +10,14 @@ Android) with sync between devices.
 - **SQLite** on the device via `tauri-plugin-sql`
 - **Vitest** tests that run against an in-memory SQLite database with the real migrations
 
+## Look
+
+The theme is "OP-1 Black", a Teenage Engineering flavoured dark look: mono
+labels (JetBrains Mono), pill-shaped switches, solid colour blocks for events
+and one orange accent. The colours are CSS variables at the top of
+`src/App.css`, and the TE-specific rules are grouped at the end of it. Fonts
+are bundled, so it looks the same offline.
+
 ## Installing on Windows
 
 Download `Calendaria_<version>_x64-setup.exe` from the newest release on the
