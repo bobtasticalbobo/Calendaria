@@ -12,7 +12,7 @@ import type { Tag } from "../db/tags";
 import type { TaskFields, TaskPatch, TaskRepository, TaskTable } from "../db/tasks";
 import { Temporal } from "../time/temporal";
 import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
-import { Popover } from "../ui/TagPicker";
+import { ColorDots, Popover } from "../ui/TagPicker";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
 import { BellIcon, ChevronIcon, PinIcon, PlusIcon } from "../ui/icons";
 import { type EditorMode, PageEditor } from "./PageEditor";
@@ -99,6 +99,7 @@ export function NotesView(props: Props) {
   const [menu, setMenu] = useState<{ x: number; y: number; items: MenuItem[] } | null>(null);
   const [reloads, setReloads] = useState(0);
   const [showDone, setShowDone] = useState<boolean>(() => readStored("notes.showDone", false));
+  const [recolor, setRecolor] = useState<{ id: string; x: number; y: number; color: string } | null>(null);
   const [deadline, setDeadline] = useState<{
     table: TaskTable;
     id: string;
@@ -516,6 +517,11 @@ export function NotesView(props: Props) {
                             ...taskMenu("notebooks", notebook, e.clientX, e.clientY),
                             { label: "New chapter", onSelect: () => newChapter(notebook.id).catch(fail) },
                             { label: "Rename", onSelect: () => setRenaming(notebook.id) },
+                            {
+                              label: "Colour…",
+                              onSelect: () =>
+                                setRecolor({ id: notebook.id, x: e.clientX, y: e.clientY, color: notebook.color }),
+                            },
                             ...(notebook.id === DEFAULT_NOTEBOOK_ID
                               ? []
                               : [
@@ -535,7 +541,16 @@ export function NotesView(props: Props) {
                       {...dropProps([CHAPTER_DRAG], (_, id) => dropChapter(id, notebook.id))}
                     >
                       <ChevronIcon open={nbOpen} />
-                      <span className="swatch" style={{ background: notebook.color }} />
+                      <span
+                        className="swatch swatch-button"
+                        style={{ background: notebook.color }}
+                        title="Change colour"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRecolor({ id: notebook.id, x: e.clientX, y: e.clientY, color: notebook.color });
+                        }}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                      />
                       {taskBox("notebooks", notebook)}
                       {renaming === notebook.id ? (
                         nameInput(notebook.id, "notebook", notebook.name)
@@ -771,6 +786,39 @@ export function NotesView(props: Props) {
       </main>
 
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={closeMenu} />}
+
+      {recolor && (
+        <Popover x={recolor.x} y={recolor.y} onClose={() => setRecolor(null)}>
+          <div className="recolor">
+            <strong>Colour</strong>
+            <ColorDots
+              value={recolor.color}
+              onChange={(color) => {
+                setRecolor(null);
+                repos.notebooks.updateNotebook(recolor.id, { color }).then(changed, fail);
+              }}
+            />
+            <label className="custom-color">
+              <input
+                type="color"
+                value={recolor.color}
+                onChange={(e) => setRecolor({ ...recolor, color: e.target.value })}
+              />
+              Any colour
+              <button
+                type="button"
+                className="link accent"
+                onClick={() => {
+                  setRecolor(null);
+                  repos.notebooks.updateNotebook(recolor.id, { color: recolor.color }).then(changed, fail);
+                }}
+              >
+                Use
+              </button>
+            </label>
+          </div>
+        </Popover>
+      )}
 
       {deadline && (
         <Popover x={deadline.x} y={deadline.y} onClose={() => setDeadline(null)}>
