@@ -16,6 +16,7 @@ import { Popover } from "../ui/TagPicker";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
 import { BellIcon, ChevronIcon, PinIcon, PlusIcon } from "../ui/icons";
 import { type EditorMode, PageEditor } from "./PageEditor";
+import { StatsView } from "./StatsView";
 import {
   buildTree,
   chapterOf,
@@ -58,7 +59,7 @@ interface Props {
   sidebarFooter: ReactNode;
 }
 
-type View = { kind: "page" } | { kind: "trash" } | { kind: "day"; day: Temporal.PlainDate };
+type View = { kind: "page" } | { kind: "trash" } | { kind: "stats" } | { kind: "day"; day: Temporal.PlainDate };
 
 const PAGE_DRAG = "application/x-calendaria-page";
 const CHAPTER_DRAG = "application/x-calendaria-chapter";
@@ -638,6 +639,13 @@ export function NotesView(props: Props) {
               >
                 Trash{trash.length ? ` (${trash.length})` : ""}
               </button>
+              <button
+                type="button"
+                className={view.kind === "stats" ? "link tree-new active" : "link tree-new"}
+                onClick={() => setView({ kind: "stats" })}
+              >
+                Statistics
+              </button>
             </>
           )}
         </div>
@@ -645,7 +653,23 @@ export function NotesView(props: Props) {
       </aside>
 
       <main className="content notes-main">
-        {view.kind === "trash" ? (
+        {view.kind === "stats" ? (
+          <StatsView
+            tasks={repos.tasks}
+            notebooks={notebooks}
+            chapters={chapters}
+            pages={pages}
+            zone={zone}
+            version={props.version + reloads}
+            onOpen={(table, id) => {
+              if (table === "notes") open(id);
+              else {
+                setCollapsed((c) => c.filter((x) => x !== id));
+                setView({ kind: "page" });
+              }
+            }}
+          />
+        ) : view.kind === "trash" ? (
           <div className="notes-list">
             <h2>Trash</h2>
             <p className="muted">Deleted pages stay here for 30 days.</p>

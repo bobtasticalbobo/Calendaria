@@ -113,7 +113,13 @@ export function TaskNags({ tasks, zone, version, onDone, onOpen, onError }: Prop
             >
               Done
             </button>
-            <button type="button" onClick={() => dismiss(t.id)}>
+            <button
+              type="button"
+              onClick={() => {
+                dismiss(t.id);
+                tasks.snoozed(t.table, t.id, taskTitle(t), t.dueDay).catch(onError);
+              }}
+            >
               Not yet
             </button>
           </div>
