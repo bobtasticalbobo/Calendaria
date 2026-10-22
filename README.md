@@ -94,7 +94,31 @@ done by hand. The code lives in `src/time/`.
 
 ## Notes
 
-Right-click a day and pick **Note** to stick a paper note on it. Notes fold down to a small square next to the day's number; click one to open it, and drag it onto another day to move it. A note can carry a reminder, which moves along with the note when you drag it to another day.
+Switch to **Notes** at the top of the sidebar. Notes are pages, kept in
+notebooks and chapters: notebook > chapter > page. A page's first line is its
+title, and it is written in markdown (`# heading`, `- list`, `- [ ] checklist`,
+`**bold**`, `*italic*`, `` `code` ``, `> quote`, links). **Read** shows it
+rendered, with checklists you can tick.
+
+- **Dates.** Write a date like 24/10/2026 (or 24/10/2026 14:30), or type a
+  shortcut and a space: `@today`, `@tomorrow`, `@fri`, `@+3`, `@2w`, `@24/12`.
+  With the cursor on a date, a bar offers **Remind me** that day; every date in
+  the page is also listed beside it with a bell. A page can have any number of
+  reminders, and the notification shows the line the date is on.
+- **Days.** A page can be linked to a calendar day, where it shows as a paper
+  square. Right-click a day and pick **Note** for a quick sticky note (it goes
+  in the *Day notes* chapter), or **Notes for this day** for every page linked
+  to it, mentioning it, or reminding you on it. Reminders show as a bell on
+  their day. Dragging a note to another day moves its reminders on that day.
+- **Links.** `[[Page title]]` links to another page (or makes it), and each
+  page lists the pages linking to it.
+- **Finding things.** Search (Ctrl+K) matches every word in titles, text and
+  tag names. Pin pages to keep them at the top. Drag pages between chapters
+  and chapters between notebooks. Deleted pages stay in the trash for 30 days.
+- **Keys.** Ctrl+N new page, Ctrl+Enter tick a checklist item, Tab and
+  Shift+Tab indent, Ctrl+B and Ctrl+I bold and italic. Enter continues a list.
+
+Notes from before 0.7.0 are in *Notebook > Day notes*.
 
 ## Tags
 

@@ -18,21 +18,34 @@ export function migrationFiles(): string[] {
 
 /** In-memory SQLite with the app's real migrations applied. */
 export function createTestDriver(): SqlDriver {
+  return createPartlyMigratedDriver(Infinity).driver;
+}
+
+/**
+ * In-memory SQLite with only the first `count` migrations applied, to test
+ * how a later migration treats existing data. `migrateRest` applies the others.
+ */
+export function createPartlyMigratedDriver(count: number): { driver: SqlDriver; migrateRest: () => void } {
   const db = new DatabaseSync(":memory:");
   // sqlx, which tauri-plugin-sql uses, turns foreign keys on by default.
   db.exec("PRAGMA foreign_keys = ON");
-  for (const file of migrationFiles()) {
-    db.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
-  }
+  const files = migrationFiles();
+  const apply = (from: number, to: number) => {
+    for (const file of files.slice(from, to)) db.exec(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
+  };
+  apply(0, count);
   // tauri-plugin-sql uses $1-style placeholders; ?1 is SQLite's numbered equivalent.
   const prepare = (sql: string) => db.prepare(sql.replace(/\$(\d+)/g, "?$1"));
   return {
-    async execute(sql, params = []) {
-      const result = prepare(sql).run(...(params as never[]));
-      return { rowsAffected: Number(result.changes) };
+    driver: {
+      async execute(sql, params = []) {
+        const result = prepare(sql).run(...(params as never[]));
+        return { rowsAffected: Number(result.changes) };
+      },
+      async select<T>(sql: string, params: unknown[] = []) {
+        return prepare(sql).all(...(params as never[])) as T[];
+      },
     },
-    async select<T>(sql: string, params: unknown[] = []) {
-      return prepare(sql).all(...(params as never[])) as T[];
-    },
+    migrateRest: () => apply(count, files.length),
   };
 }

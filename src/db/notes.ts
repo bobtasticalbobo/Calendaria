@@ -1,6 +1,7 @@
 import { Temporal } from "../time/temporal";
-import { isValidTimeZone, toZoned } from "../time/timing";
 import type { SqlDriver } from "./driver";
+import { DEFAULT_CHAPTER_ID } from "./notebooks";
+import { NoteReminderRepository } from "./noteReminders";
 import {
   type Clock,
   type SyncedRecord,
@@ -15,52 +16,55 @@ import {
 export const NOTE_COLORS = ["yellow", "pink", "blue", "green"] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
-/** A reminder at a wall-clock time in a zone, like a timed event's start. */
-export interface NoteReminder {
-  at: Temporal.PlainDateTime;
-  timeZone: string;
-}
-
+/** A page in a chapter. Notes on the calendar are pages linked to a day. */
 export interface Note extends SyncedRecord {
-  day: Temporal.PlainDate;
+  chapterId: string;
+  /** The calendar day the page is linked to, if any. */
+  day: Temporal.PlainDate | null;
+  /** Markdown. The first line is the title. */
   body: string;
   color: NoteColor;
-  remind: NoteReminder | null;
+  pinned: boolean;
+  /** Order within the chapter. */
+  position: number;
   /** Tag ids, in the order they were added. */
   tags: string[];
 }
 
 export interface NoteInput {
-  day: Temporal.PlainDate;
+  chapterId?: string;
+  day?: Temporal.PlainDate | null;
   body?: string;
   color?: NoteColor;
-  remind?: NoteReminder | null;
+  pinned?: boolean;
+  position?: number;
   tags?: string[];
 }
 
 interface NoteRow extends SyncedRow {
-  day: string;
+  chapter_id: string | null;
+  day: string | null;
   body: string;
   color: string;
-  remind_local: string | null;
-  remind_zone: string | null;
-  remind_utc: string | null;
+  pinned: number;
+  position: number;
   tags: string;
 }
 
-const COLUMNS =
-  "id, day, body, color, remind_local, remind_zone, remind_utc, tags, created_at, updated_at, deleted_at";
+const COLUMNS = "id, chapter_id, day, body, color, pinned, position, tags, created_at, updated_at, deleted_at";
+
+/** How long deleted pages stay in the trash. */
+export const TRASH_DAYS = 30;
 
 function fromRow(row: NoteRow): Note {
   return {
     ...syncedFieldsFromRow(row),
-    day: Temporal.PlainDate.from(row.day),
+    chapterId: row.chapter_id ?? DEFAULT_CHAPTER_ID,
+    day: row.day ? Temporal.PlainDate.from(row.day) : null,
     body: row.body,
     color: (NOTE_COLORS as readonly string[]).includes(row.color) ? (row.color as NoteColor) : "yellow",
-    remind:
-      row.remind_local && row.remind_zone
-        ? { at: Temporal.PlainDateTime.from(row.remind_local), timeZone: row.remind_zone }
-        : null,
+    pinned: Boolean(row.pinned),
+    position: Number(row.position),
     tags: parseIdList(row.tags),
   };
 }
@@ -68,20 +72,6 @@ function fromRow(row: NoteRow): Note {
 function validColor(color: string): NoteColor {
   if (!(NOTE_COLORS as readonly string[]).includes(color)) throw new Error(`Unknown note color "${color}"`);
   return color as NoteColor;
-}
-
-function validReminder(remind: NoteReminder | null): NoteReminder | null {
-  if (remind && !isValidTimeZone(remind.timeZone)) throw new Error(`Unknown time zone "${remind.timeZone}"`);
-  return remind;
-}
-
-/** Same text format as events' *_utc columns, so comparisons sort correctly. */
-function utcText(instant: Temporal.Instant): string {
-  return instant.toString({ fractionalSecondDigits: 3 });
-}
-
-function remindUtc(remind: NoteReminder | null): string | null {
-  return remind ? utcText(toZoned(remind.at, remind.timeZone).toInstant()) : null;
 }
 
 export class NoteRepository {
@@ -96,6 +86,14 @@ export class NoteRepository {
     return rows.length ? fromRow(rows[0]) : null;
   }
 
+  /** Every live page. A notebook is small enough to hold in memory for the tree, search and links. */
+  async list(): Promise<Note[]> {
+    const rows = await this.db.select<NoteRow>(
+      `SELECT ${COLUMNS} FROM notes WHERE deleted_at IS NULL ORDER BY position, id`,
+    );
+    return rows.map(fromRow);
+  }
+
   /** Live notes on the days from `first` to `last`, inclusive, oldest first. */
   async listOnDays(first: Temporal.PlainDate, last: Temporal.PlainDate): Promise<Note[]> {
     const rows = await this.db.select<NoteRow>(
@@ -107,72 +105,81 @@ export class NoteRepository {
     return rows.map(fromRow);
   }
 
-  /** Live notes whose reminder time falls in (since, until]. */
-  async remindersDue(since: Temporal.Instant, until: Temporal.Instant): Promise<Note[]> {
+  /** Pages deleted in the last TRASH_DAYS days, most recent first. */
+  async listTrash(): Promise<Note[]> {
+    const since = toTimestamp(new Date(this.clock().getTime() - TRASH_DAYS * 86_400_000));
     const rows = await this.db.select<NoteRow>(
-      `SELECT ${COLUMNS} FROM notes
-       WHERE deleted_at IS NULL AND remind_utc > $1 AND remind_utc <= $2
-       ORDER BY remind_utc`,
-      [utcText(since), utcText(until)],
+      `SELECT ${COLUMNS} FROM notes WHERE deleted_at IS NOT NULL AND deleted_at >= $1 ORDER BY deleted_at DESC`,
+      [since],
     );
     return rows.map(fromRow);
   }
 
   async create(input: NoteInput): Promise<Note> {
     const now = toTimestamp(this.clock());
+    const chapterId = input.chapterId ?? DEFAULT_CHAPTER_ID;
+    let position = input.position;
+    if (position === undefined) {
+      const [{ last }] = await this.db.select<{ last: number | null }>(
+        "SELECT MAX(position) AS last FROM notes WHERE chapter_id = $1 AND deleted_at IS NULL",
+        [chapterId],
+      );
+      position = (last ?? 0) + 1;
+    }
     const note: Note = {
       id: newId(),
-      day: input.day,
+      chapterId,
+      day: input.day ?? null,
       body: input.body ?? "",
       color: validColor(input.color ?? "yellow"),
-      remind: validReminder(input.remind ?? null),
+      pinned: input.pinned ?? false,
+      position,
       tags: [...new Set(input.tags ?? [])],
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
     };
-    await this.db.execute(
-      `INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-      [
-        note.id,
-        note.day.toString(),
-        note.body,
-        note.color,
-        note.remind?.at.toString() ?? null,
-        note.remind?.timeZone ?? null,
-        remindUtc(note.remind),
-        JSON.stringify(note.tags),
-        note.createdAt,
-        note.updatedAt,
-        note.deletedAt,
-      ],
-    );
+    await this.db.execute(`INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [
+      note.id,
+      note.chapterId,
+      note.day?.toString() ?? null,
+      note.body,
+      note.color,
+      note.pinned ? 1 : 0,
+      note.position,
+      JSON.stringify(note.tags),
+      note.createdAt,
+      note.updatedAt,
+      note.deletedAt,
+    ]);
     return note;
   }
 
-  async update(id: string, patch: Partial<NoteInput>): Promise<Note> {
+  async update(id: string, patch: NoteInput): Promise<Note> {
     const existing = await this.get(id);
     if (!existing || existing.deletedAt) throw new Error(`Note ${id} not found`);
     const updated: Note = {
       ...existing,
-      day: patch.day ?? existing.day,
+      chapterId: patch.chapterId ?? existing.chapterId,
+      day: patch.day === undefined ? existing.day : patch.day,
       body: patch.body ?? existing.body,
       color: patch.color === undefined ? existing.color : validColor(patch.color),
-      remind: patch.remind === undefined ? existing.remind : validReminder(patch.remind),
+      pinned: patch.pinned ?? existing.pinned,
+      position: patch.position ?? existing.position,
       tags: patch.tags === undefined ? existing.tags : [...new Set(patch.tags)],
       updatedAt: toTimestamp(this.clock()),
     };
     await this.db.execute(
-      `UPDATE notes SET day = $1, body = $2, color = $3, remind_local = $4, remind_zone = $5,
-         remind_utc = $6, tags = $7, updated_at = $8
+      `UPDATE notes SET chapter_id = $1, day = $2, body = $3, color = $4, pinned = $5, position = $6,
+         tags = $7, updated_at = $8
        WHERE id = $9`,
       [
-        updated.day.toString(),
+        updated.chapterId,
+        updated.day?.toString() ?? null,
         updated.body,
         updated.color,
-        updated.remind?.at.toString() ?? null,
-        updated.remind?.timeZone ?? null,
-        remindUtc(updated.remind),
+        updated.pinned ? 1 : 0,
+        updated.position,
         JSON.stringify(updated.tags),
         updated.updatedAt,
         id,
@@ -182,18 +189,23 @@ export class NoteRepository {
   }
 
   /**
-   * Moves a note to another day. A reminder moves with it by the same number
-   * of days, keeping its time of day.
+   * Moves a note to another day. Reminders on its old day move with it by the
+   * same number of days, keeping their time of day.
    */
   async moveToDay(id: string, day: Temporal.PlainDate): Promise<Note> {
     const existing = await this.get(id);
     if (!existing || existing.deletedAt) throw new Error(`Note ${id} not found`);
-    const shift = existing.day.until(day, { largestUnit: "days" });
-    const remind = existing.remind && { ...existing.remind, at: existing.remind.at.add(shift) };
-    return this.update(id, { day, remind });
+    if (existing.day) {
+      const shift = existing.day.until(day, { largestUnit: "days" });
+      const reminders = new NoteReminderRepository(this.db, this.clock);
+      for (const r of await reminders.list()) {
+        if (r.noteId === id && r.at.toPlainDate().equals(existing.day)) await reminders.move(r.id, r.at.add(shift));
+      }
+    }
+    return this.update(id, { day });
   }
 
-  /** Soft delete: the row stays as a tombstone so other devices learn about it. */
+  /** Soft delete: the row stays as a tombstone so other devices learn about it, and the page can be restored. */
   async remove(id: string): Promise<void> {
     const now = toTimestamp(this.clock());
     const { rowsAffected } = await this.db.execute(
@@ -201,5 +213,17 @@ export class NoteRepository {
       [now, id],
     );
     if (rowsAffected === 0) throw new Error(`Note ${id} not found`);
+  }
+
+  /** Brings a page back from the trash, into `chapterId` if its own chapter is gone. */
+  async restore(id: string, chapterId?: string): Promise<Note> {
+    const now = toTimestamp(this.clock());
+    await this.db.execute(
+      `UPDATE notes SET deleted_at = NULL, updated_at = $1, chapter_id = COALESCE($2, chapter_id) WHERE id = $3`,
+      [now, chapterId ?? null, id],
+    );
+    const note = await this.get(id);
+    if (!note) throw new Error(`Note ${id} not found`);
+    return note;
   }
 }

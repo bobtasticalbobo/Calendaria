@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { CalendarRepository } from "../src/db/calendars";
 import type { SqlDriver } from "../src/db/driver";
 import { EventRepository } from "../src/db/events";
+import { NotebookRepository } from "../src/db/notebooks";
+import { NoteReminderRepository } from "../src/db/noteReminders";
 import { NoteRepository } from "../src/db/notes";
 import { SettingsRepository } from "../src/db/settings";
 import { TagRepository } from "../src/db/tags";
@@ -62,6 +64,8 @@ class Device {
   calendars = new CalendarRepository(this.db, clock);
   events = new EventRepository(this.db, clock);
   notes = new NoteRepository(this.db, clock);
+  notebooks = new NotebookRepository(this.db, clock);
+  reminders = new NoteReminderRepository(this.db, clock);
   tags = new TagRepository(this.db, clock);
 
   constructor(private readonly github: FakeGists) {}
@@ -121,6 +125,28 @@ describe("sync between devices", () => {
     expect(await pc.eventTitles()).toEqual(["Dentist"]);
     const notes = await pc.notes.listOnDays(Temporal.PlainDate.from("2026-10-21"), Temporal.PlainDate.from("2026-10-21"));
     expect(notes.map((n) => n.body)).toEqual(["Bring card"]);
+  });
+
+  it("brings notebooks, pages and their reminders across, encrypted, with one default notebook", async () => {
+    const { notebook, chapter } = await laptop.notebooks.createNotebook("Travel");
+    const page = await laptop.notes.create({ chapterId: chapter.id, body: "Oslo trip\nFly 24/10/2026", pinned: true });
+    await laptop.reminders.create(page.id, Temporal.PlainDateTime.from("2026-10-24T06:00"), ZONE);
+
+    await laptop.sync();
+    await pc.sync();
+
+    expect((await pc.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Notebook", "Travel"]);
+    expect((await pc.notebooks.listChapters()).find((c) => c.id === chapter.id)?.notebookId).toBe(notebook.id);
+    const [synced] = (await pc.notes.list()).filter((n) => n.id === page.id);
+    expect(synced).toMatchObject({ body: "Oslo trip\nFly 24/10/2026", pinned: true, chapterId: chapter.id });
+    expect((await pc.reminders.list()).map((r) => r.at.toString())).toEqual(["2026-10-24T06:00:00"]);
+    expect(github.allText()).not.toContain("Oslo");
+
+    await pc.notebooks.removeNotebook(notebook.id);
+    await pc.sync();
+    await laptop.sync();
+    expect((await laptop.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Notebook"]);
+    expect(await laptop.reminders.list()).toEqual([]);
   });
 
   it("merges each device's own Personal calendar into one", async () => {
