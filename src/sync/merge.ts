@@ -9,6 +9,7 @@ export const SYNCED_TABLES = [
   "chapters",
   "notes",
   "note_reminders",
+  "task_events",
   "tags",
   "day_tags",
 ] as const;

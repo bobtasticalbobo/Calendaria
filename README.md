@@ -134,6 +134,14 @@ every 2 hours the day after, then hourly, then every half hour from the third
 day late, between 08:00 and 22:00, until the task is ticked. If the app was
 closed, it asks as soon as it opens.
 
+**Statistics** (under Trash in the tree) shows, for the last 7 days, 30 days,
+12 months or all time: tasks done and made, open and overdue tasks, how many
+deadlines were met, the average time from making a task to ticking it, your
+streak of days with something ticked, done per day or month, a weekday × hour
+map of when you tick things, done per notebook, the tasks most often answered
+"Not yet", and what you finished recently. History starts with 0.8.1; tasks
+ticked before that count from when they were ticked.
+
 ## Tags
 
 Right-click an event to pick its tags, or open it and use **Tags** (type a name and press Enter

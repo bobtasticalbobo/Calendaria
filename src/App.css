@@ -1822,3 +1822,178 @@ button:hover {
   gap: 6px;
   margin-top: 10px;
 }
+
+/* Task statistics */
+
+.stats {
+  max-width: 900px;
+}
+
+.stats section {
+  margin-top: 28px;
+}
+
+.stats h3 {
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.stats-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.stat-tile strong {
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.stat-tile span {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+.stat-tile.warn strong {
+  color: var(--danger);
+}
+
+.bars {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 150px;
+}
+
+.bar {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+}
+
+.bar-fill {
+  width: 100%;
+  max-width: 34px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+
+.bar-count,
+.bar-label {
+  font-size: 0.66rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bar-label {
+  height: 1em;
+  color: var(--faint);
+}
+
+.heat {
+  display: grid;
+  grid-template-columns: 34px repeat(24, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.heat-hour,
+.heat-day {
+  font-size: 0.64rem;
+  color: var(--faint);
+}
+
+.heat-cell {
+  height: 14px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.stats-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+
+.hbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.hbar-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+  flex: none;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stats-columns section:last-child .hbar-name {
+  flex: 1;
+  width: auto;
+}
+
+.hbar-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+}
+
+.hbar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+.hbar-count {
+  min-width: 2em;
+  text-align: right;
+  color: var(--muted);
+}
+
+.recent-row {
+  gap: 10px;
+  padding: 7px 4px;
+  font-size: 0.85rem;
+}
+
+.recent-row .link {
+  color: var(--text);
+}
+
+.link:disabled {
+  cursor: default;
+  color: var(--muted);
+}
