@@ -1,11 +1,9 @@
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 import type { EventRepository } from "../db/events";
+import type { NoteReminderRepository } from "../db/noteReminders";
 import type { NoteRepository } from "../db/notes";
+import { lineMentioning } from "../notes/mentions";
 import { MAX_REMINDER, dueReminders } from "../time/reminders";
 import { Temporal } from "../time/temporal";
 import { formatTime } from "./dates";
@@ -25,9 +23,14 @@ function describe(minutesBefore: number): string {
  * Each check covers the time since the previous one, so a reminder that comes
  * due while the computer sleeps fires on wake instead of being lost.
  */
-export function useReminders(events: EventRepository | null, notes: NoteRepository | null, zone: string) {
+export function useReminders(
+  events: EventRepository | null,
+  notes: NoteRepository | null,
+  noteReminders: NoteReminderRepository | null,
+  zone: string,
+) {
   useEffect(() => {
-    if (!events || !notes) return;
+    if (!events || !notes || !noteReminders) return;
     let since = Temporal.Now.instant();
     let running = false;
 
@@ -38,7 +41,7 @@ export function useReminders(events: EventRepository | null, notes: NoteReposito
         const now = Temporal.Now.instant();
         const occurrences = await events.occurrencesInRange(since, now.add(MAX_REMINDER), zone);
         const due = dueReminders(occurrences, since, now, zone);
-        const dueNotes = await notes.remindersDue(since, now);
+        const dueNotes = await noteReminders.due(since, now);
         since = now;
         if ((due.length || dueNotes.length) && !(await isPermissionGranted())) {
           if ((await requestPermission()) !== "granted") return;
@@ -49,8 +52,15 @@ export function useReminders(events: EventRepository | null, notes: NoteReposito
             body: `${describe(reminder.minutesBefore)} · ${formatTime(reminder.start)}`,
           });
         }
-        for (const note of dueNotes) {
-          sendNotification({ title: "Note", body: noteTitle(note) });
+        for (const reminder of dueNotes) {
+          const note = await notes.get(reminder.noteId);
+          if (!note) continue;
+          const line = lineMentioning(note.body, reminder.at.toPlainDate());
+          const title = noteTitle(note);
+          sendNotification({
+            title,
+            body: line && line !== title ? line : `Note · ${formatTime(reminder.at.toPlainTime())}`,
+          });
         }
       } catch (e) {
         console.error("Reminder check failed", e);
@@ -61,5 +71,5 @@ export function useReminders(events: EventRepository | null, notes: NoteReposito
 
     const timer = setInterval(check, CHECK_EVERY_MS);
     return () => clearInterval(timer);
-  }, [events, notes, zone]);
+  }, [events, notes, noteReminders, zone]);
 }

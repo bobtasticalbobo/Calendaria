@@ -1,6 +1,8 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { type Calendar, CalendarRepository } from "./db/calendars";
 import { type EventOccurrence, EventRepository } from "./db/events";
+import { NotebookRepository } from "./db/notebooks";
+import { type NoteReminder, NoteReminderRepository } from "./db/noteReminders";
 import { type Note, type NoteInput, NoteRepository } from "./db/notes";
 import type { SqlDriver } from "./db/driver";
 import { SettingsRepository } from "./db/settings";
@@ -22,6 +24,7 @@ import { useSync } from "./ui/useSync";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { Popover, TagPicker } from "./ui/TagPicker";
 import { useReminders } from "./ui/useReminders";
+import { type NotesFocus, NotesView } from "./notes/NotesView";
 import "./App.css";
 
 interface Repos {
@@ -30,7 +33,19 @@ interface Repos {
   calendars: CalendarRepository;
   events: EventRepository;
   notes: NoteRepository;
+  notebooks: NotebookRepository;
+  reminders: NoteReminderRepository;
   tags: TagRepository;
+}
+
+type Section = "calendar" | "notes";
+
+function storedSection(): Section {
+  try {
+    return localStorage.getItem("section") === "notes" ? "notes" : "calendar";
+  } catch {
+    return "calendar";
+  }
 }
 
 interface MenuTarget {
@@ -49,6 +64,9 @@ export default function App() {
   const [calendars, setCalendars] = useState<Calendar[]>([]);
   const [items, setItems] = useState<EventOccurrence[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [noteReminders, setNoteReminders] = useState<NoteReminder[]>([]);
+  const [section, setSectionState] = useState<Section>(storedSection);
+  const [notesFocus, setNotesFocus] = useState<NotesFocus | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [dayTags, setDayTags] = useState<Map<string, string[]>>(new Map());
   const [tagMenu, setTagMenu] = useState<
@@ -90,6 +108,8 @@ export default function App() {
         calendars: calendarRepo,
         events: new EventRepository(db),
         notes: new NoteRepository(db),
+        notebooks: new NotebookRepository(db),
+        reminders: new NoteReminderRepository(db),
         tags: new TagRepository(db),
       });
     })().catch((e) => setError(String(e)));
@@ -103,21 +123,23 @@ export default function App() {
     Promise.all([
       repos.calendars.list(),
       repos.events.occurrencesInRange(start, end, zone),
-      repos.notes.listOnDays(days[0], days[days.length - 1]),
+      repos.notes.list(),
+      repos.reminders.onDays(days[0], days[days.length - 1]),
       repos.tags.list(),
       repos.tags.onDays(days[0], days[days.length - 1]),
     ])
-      .then(([cals, occurrences, dayNotes, allTags, tagsByDay]) => {
+      .then(([cals, occurrences, allNotes, reminders, allTags, tagsByDay]) => {
         setCalendars(cals);
         setItems(occurrences);
-        setNotes(dayNotes);
+        setNotes(allNotes);
+        setNoteReminders(reminders);
         setTags(allTags);
         setDayTags(tagsByDay);
       })
       .catch((e) => setError(String(e)));
   }, [repos, days, zone, version]);
 
-  useReminders(repos?.events ?? null, repos?.notes ?? null, zone);
+  useReminders(repos?.events ?? null, repos?.notes ?? null, repos?.reminders ?? null, zone);
   const appUpdate = useUpdate();
   const sync = useSync(repos?.db ?? null, repos?.settings ?? null, edits, () => setVersion((v) => v + 1));
 
@@ -129,10 +151,37 @@ export default function App() {
   const closeMenu = useCallback(() => setMenu(null), []);
 
   const tagById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
+  const noteById = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
+
+  const setSection = useCallback((next: Section) => {
+    setSectionState(next);
+    setOpenNote(null);
+    setVersion((v) => v + 1);
+    try {
+      localStorage.setItem("section", next);
+    } catch {
+      // Only remembers the last view.
+    }
+  }, []);
+
+  const openInNotes = useCallback(
+    (focus: NotesFocus) => {
+      setNotesFocus(focus);
+      setSection("notes");
+    },
+    [setSection],
+  );
 
   const noteHandlers = useMemo<NoteHandlers>(
     () => ({
-      notesOn: (day) => notes.filter((n) => n.day.equals(day)),
+      notesOn: (day) => notes.filter((n) => n.day?.equals(day)),
+      remindersOn: (day) =>
+        noteReminders.flatMap((r) => {
+          const note = noteById.get(r.noteId);
+          return note && r.at.toPlainDate().equals(day) ? [{ reminder: r, note }] : [];
+        }),
+      hasReminder: (note) => noteReminders.some((r) => r.noteId === note.id),
+      openPage: (id) => openInNotes({ pageId: id }),
       tagsOn: (day) => (dayTags.get(day.toString()) ?? []).flatMap((id) => tagById.get(id) ?? []),
       tag: (id) => tagById.get(id),
       open: (note, anchor) => setOpenNote({ id: note.id, anchor: anchor.getBoundingClientRect() }),
@@ -151,7 +200,7 @@ export default function App() {
         setMenu({ x: e.clientX, y: e.clientY, day, time });
       },
     }),
-    [notes, dayTags, tagById, repos],
+    [notes, noteReminders, noteById, dayTags, tagById, repos, openInNotes],
   );
 
   if (error) return <main className="centered error">{error}</main>;
@@ -211,7 +260,25 @@ export default function App() {
     setOpenNote({ id: note.id, anchor: new DOMRect(target.x, target.y, 0, 0) });
   }
 
-  async function changeNote(id: string, patch: Partial<NoteInput>) {
+  async function addNoteReminder(noteId: string, at: Temporal.PlainDateTime) {
+    const reminder = await repos!.reminders.create(noteId, at, zone);
+    setNoteReminders((current) => [...current, reminder]);
+    edited();
+  }
+
+  async function moveNoteReminder(id: string, at: Temporal.PlainDateTime) {
+    const reminder = await repos!.reminders.move(id, at);
+    setNoteReminders((current) => current.map((r) => (r.id === id ? reminder : r)));
+    edited();
+  }
+
+  async function removeNoteReminders(ids: string[]) {
+    for (const id of ids) await repos!.reminders.remove(id);
+    setNoteReminders((current) => current.filter((r) => !ids.includes(r.id)));
+    edited();
+  }
+
+  async function changeNote(id: string, patch: NoteInput) {
     const updated = await repos!.notes.update(id, patch);
     setNotes((current) => current.map((n) => (n.id === id ? updated : n)));
     edited();
@@ -261,138 +328,180 @@ export default function App() {
     setMode("day");
   };
 
+  const sidebarTop = (
+    <>
+      <h1>Calendaria</h1>
+      <div className="segmented section-nav">
+        <button type="button" className={section === "calendar" ? "active" : ""} onClick={() => setSection("calendar")}>
+          Calendar
+        </button>
+        <button type="button" className={section === "notes" ? "active" : ""} onClick={() => setSection("notes")}>
+          Notes
+        </button>
+      </div>
+    </>
+  );
+
+  const sidebarFooter = (
+    <>
+      {appUpdate.update && (
+        <div className="update">
+          <p>Version {appUpdate.update.version} is ready.</p>
+          <button type="button" className="link" onClick={appUpdate.install}>
+            {appUpdate.installing ? "Updating…" : "Update and restart"}
+          </button>
+          {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
+        </div>
+      )}
+      <p className="zone-note">
+        Times shown in {zone}
+        <br />
+        Version {__APP_VERSION__}
+        <br />
+        <button type="button" className="link settings-open" onClick={() => setSettingsOpen(true)}>
+          Settings
+        </button>
+      </p>
+    </>
+  );
+
   return (
     <div className="layout">
-      <aside className="sidebar">
-        <h1>Calendaria</h1>
-        <button
-          type="button"
-          className="primary new-event"
-          onClick={() => setDialog({ kind: "new", day: anchor, time: new Temporal.PlainTime(9) })}
-        >
-          New event
-        </button>
-        <h2>Calendars</h2>
-        <ul className="calendar-list">
-          {calendars.map((cal) => (
-            <li key={cal.id}>
-              <span className="swatch" style={{ background: cal.color }} />
-              {cal.name}
-            </li>
-          ))}
-        </ul>
-        <form onSubmit={addCalendar} className="add-calendar">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="New calendar"
-            aria-label="New calendar name"
-          />
-          <button type="submit">Add</button>
-        </form>
-        <label className="link import">
-          {importing ? "Importing…" : "Import .ics file"}
-          <input
-            type="file"
-            accept=".ics,text/calendar"
-            hidden
-            disabled={importing}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) importFile(file);
-            }}
-          />
-        </label>
-        {importResult && (
-          <div className="import-result">
-            {"error" in importResult ? (
-              <p className="error-text">{importResult.error}</p>
-            ) : (
-              <>
-                <p>
-                  {importResult.created} added, {importResult.updated} updated
-                  {importResult.skipped > 0 && `, ${importResult.skipped} you'd deleted left out`} in{" "}
-                  {importResult.calendarName}.
-                </p>
-                {importResult.warnings.map((w) => (
-                  <p key={w} className="muted">
-                    {w}
-                  </p>
-                ))}
-              </>
+      {section === "notes" ? (
+        <NotesView
+          repos={repos}
+          tags={tags}
+          zone={zone}
+          version={version}
+          focus={notesFocus}
+          onCreateTag={createTag}
+          onEdited={edited}
+          onError={(e) => setError(String(e))}
+          onShowDay={(day) => {
+            setAnchor(day);
+            if (mode === "month" && day.month !== anchor.month) setMode("month");
+            setSection("calendar");
+          }}
+          sidebarTop={sidebarTop}
+          sidebarFooter={sidebarFooter}
+        />
+      ) : (
+        <>
+          <aside className="sidebar">
+            {sidebarTop}
+            <button
+              type="button"
+              className="primary new-event"
+              onClick={() => setDialog({ kind: "new", day: anchor, time: new Temporal.PlainTime(9) })}
+            >
+              New event
+            </button>
+            <h2>Calendars</h2>
+            <ul className="calendar-list">
+              {calendars.map((cal) => (
+                <li key={cal.id}>
+                  <span className="swatch" style={{ background: cal.color }} />
+                  {cal.name}
+                </li>
+              ))}
+            </ul>
+            <form onSubmit={addCalendar} className="add-calendar">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New calendar"
+                aria-label="New calendar name"
+              />
+              <button type="submit">Add</button>
+            </form>
+            <label className="link import">
+              {importing ? "Importing…" : "Import .ics file"}
+              <input
+                type="file"
+                accept=".ics,text/calendar"
+                hidden
+                disabled={importing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) importFile(file);
+                }}
+              />
+            </label>
+            {importResult && (
+              <div className="import-result">
+                {"error" in importResult ? (
+                  <p className="error-text">{importResult.error}</p>
+                ) : (
+                  <>
+                    <p>
+                      {importResult.created} added, {importResult.updated} updated
+                      {importResult.skipped > 0 && `, ${importResult.skipped} you'd deleted left out`} in{" "}
+                      {importResult.calendarName}.
+                    </p>
+                    {importResult.warnings.map((w) => (
+                      <p key={w} className="muted">
+                        {w}
+                      </p>
+                    ))}
+                  </>
+                )}
+                <button type="button" className="link" onClick={() => setImportResult(null)}>
+                  Dismiss
+                </button>
+              </div>
             )}
-            <button type="button" className="link" onClick={() => setImportResult(null)}>
-              Dismiss
-            </button>
-          </div>
-        )}
-        {appUpdate.update && (
-          <div className="update">
-            <p>Version {appUpdate.update.version} is ready.</p>
-            <button type="button" className="link" onClick={appUpdate.install}>
-              {appUpdate.installing ? "Updating…" : "Update and restart"}
-            </button>
-            {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
-          </div>
-        )}
-        <p className="zone-note">
-          Times shown in {zone}
-          <br />
-          Version {__APP_VERSION__}
-          <br />
-          <button type="button" className="link settings-open" onClick={() => setSettingsOpen(true)}>
-            Settings
-          </button>
-        </p>
-      </aside>
+            {sidebarFooter}
+          </aside>
 
-      <main className="content">
-        <header className="toolbar">
-          <button type="button" onClick={() => setAnchor(Temporal.Now.plainDateISO(zone))}>
-            Today
-          </button>
-          <button type="button" aria-label="Previous" onClick={() => setAnchor(stepAnchor(mode, anchor, -1))}>
-            ‹
-          </button>
-          <button type="button" aria-label="Next" onClick={() => setAnchor(stepAnchor(mode, anchor, 1))}>
-            ›
-          </button>
-          <h2>{viewTitle(mode, anchor)}</h2>
-          <span className="spacer" />
-          <div className="segmented">
-            {(["day", "week", "month"] as const).map((m) => (
-              <button type="button" key={m} className={m === mode ? "active" : ""} onClick={() => setMode(m)}>
-                {m[0].toUpperCase() + m.slice(1)}
+          <main className="content">
+            <header className="toolbar">
+              <button type="button" onClick={() => setAnchor(Temporal.Now.plainDateISO(zone))}>
+                Today
               </button>
-            ))}
-          </div>
-        </header>
+              <button type="button" aria-label="Previous" onClick={() => setAnchor(stepAnchor(mode, anchor, -1))}>
+                ‹
+              </button>
+              <button type="button" aria-label="Next" onClick={() => setAnchor(stepAnchor(mode, anchor, 1))}>
+                ›
+              </button>
+              <h2>{viewTitle(mode, anchor)}</h2>
+              <span className="spacer" />
+              <div className="segmented">
+                {(["day", "week", "month"] as const).map((m) => (
+                  <button type="button" key={m} className={m === mode ? "active" : ""} onClick={() => setMode(m)}>
+                    {m[0].toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </header>
 
-        {mode === "month" ? (
-          <MonthView
-            days={days}
-            month={anchor.month}
-            items={items}
-            zone={zone}
-            colorOf={colorOf}
-            onSelect={(item) => setDialog({ kind: "edit", item })}
-            onCreate={(day) => setDialog({ kind: "new", day })}
-            onOpenDay={openDay}
-            notes={noteHandlers}
-          />
-        ) : (
-          <TimeGridView
-            days={days}
-            items={items}
-            zone={zone}
-            colorOf={colorOf}
-            onSelect={(item) => setDialog({ kind: "edit", item })}
-            onCreate={(day, time) => setDialog({ kind: "new", day, time })}
-            notes={noteHandlers}
-          />
-        )}
-      </main>
+            {mode === "month" ? (
+              <MonthView
+                days={days}
+                month={anchor.month}
+                items={items}
+                zone={zone}
+                colorOf={colorOf}
+                onSelect={(item) => setDialog({ kind: "edit", item })}
+                onCreate={(day) => setDialog({ kind: "new", day })}
+                onOpenDay={openDay}
+                notes={noteHandlers}
+              />
+            ) : (
+              <TimeGridView
+                days={days}
+                items={items}
+                zone={zone}
+                colorOf={colorOf}
+                onSelect={(item) => setDialog({ kind: "edit", item })}
+                onCreate={(day, time) => setDialog({ kind: "new", day, time })}
+                notes={noteHandlers}
+              />
+            )}
+          </main>
+        </>
+      )}
 
       {menu && (
         <ContextMenu
@@ -402,6 +511,7 @@ export default function App() {
           items={[
             { label: "New event", onSelect: () => setDialog({ kind: "new", day: menu.day, time: menu.time }) },
             { label: "Note", onSelect: () => addNote(menu).catch((e) => setError(String(e))) },
+            { label: "Notes for this day", onSelect: () => openInNotes({ day: menu.day }) },
             { label: "Tags", onSelect: () => setTagMenu({ x: menu.x, y: menu.y, kind: "day", day: menu.day }) },
           ]}
         />
@@ -443,12 +553,17 @@ export default function App() {
         <StickyNote
           key={editingNote.id}
           note={editingNote}
+          reminders={noteReminders.filter((r) => r.noteId === editingNote.id)}
           anchor={openNote.anchor}
           zone={zone}
           tags={tags}
           onCreateTag={createTag}
           onChange={(patch) => changeNote(editingNote.id, patch).catch((e) => setError(String(e)))}
           onDelete={() => removeNote(editingNote.id).catch((e) => setError(String(e)))}
+          onAddReminder={(at) => addNoteReminder(editingNote.id, at).catch((e) => setError(String(e)))}
+          onMoveReminder={(id, at) => moveNoteReminder(id, at).catch((e) => setError(String(e)))}
+          onRemoveReminders={(ids) => removeNoteReminders(ids).catch((e) => setError(String(e)))}
+          onOpenInNotes={() => openInNotes({ pageId: editingNote.id })}
           onClose={() => setOpenNote(null)}
         />
       )}

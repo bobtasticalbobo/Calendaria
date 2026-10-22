@@ -2,7 +2,16 @@ import type { SqlDriver } from "../db/driver";
 import { type Clock, toTimestamp } from "../db/records";
 
 /** Synced tables, parents before children so foreign keys hold while applying. */
-export const SYNCED_TABLES = ["calendars", "events", "notes", "tags", "day_tags"] as const;
+export const SYNCED_TABLES = [
+  "calendars",
+  "events",
+  "notebooks",
+  "chapters",
+  "notes",
+  "note_reminders",
+  "tags",
+  "day_tags",
+] as const;
 export type SyncedTable = (typeof SYNCED_TABLES)[number];
 
 /** A database row as stored, column name to value. */

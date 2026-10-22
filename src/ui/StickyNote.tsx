@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { NoteReminder } from "../db/noteReminders";
 import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
@@ -8,13 +9,18 @@ import { TagLabels, TagPicker } from "./TagPicker";
 
 interface Props {
   note: Note;
+  reminders: NoteReminder[];
   anchor: DOMRect;
   zone: string;
   tags: Tag[];
   onCreateTag: (name: string, color: string) => Promise<Tag>;
-  onChange: (patch: Partial<NoteInput>) => void;
+  onChange: (patch: NoteInput) => void;
   onDelete: () => void;
   onClose: () => void;
+  onAddReminder: (at: Temporal.PlainDateTime) => void;
+  onMoveReminder: (id: string, at: Temporal.PlainDateTime) => void;
+  onRemoveReminders: (ids: string[]) => void;
+  onOpenInNotes: () => void;
 }
 
 const WIDTH = 240;
@@ -31,14 +37,16 @@ function defaultReminder(day: Temporal.PlainDate, zone: string): Temporal.PlainD
 }
 
 /** An open sticky note, placed beside the marker it was opened from. */
-export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, onDelete, onClose }: Props) {
+export function StickyNote(props: Props) {
+  const { note, reminders, anchor, zone, tags, onCreateTag, onChange, onDelete, onClose } = props;
+  const remind = reminders[0];
   const ref = useRef<HTMLDivElement>(null);
   const [picking, setPicking] = useState(false);
   const noteTags = note.tags.map((id) => tags.find((t) => t.id === id)).filter((t): t is Tag => !!t);
   const [body, setBody] = useState(note.body);
   const pending = useRef<number | undefined>(undefined);
-  const latest = useRef({ body, note, onChange, onDelete, onClose });
-  latest.current = { body, note, onChange, onDelete, onClose };
+  const latest = useRef({ body, reminders, onChange, onDelete, onClose });
+  latest.current = { body, reminders, onChange, onDelete, onClose };
 
   const flush = () => {
     if (pending.current === undefined) return;
@@ -55,8 +63,8 @@ export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, on
 
   /** Closing a note that was left empty throws it away. */
   const close = () => {
-    const { body, note } = latest.current;
-    if (!body.trim() && !note.remind) discard();
+    const { body, reminders } = latest.current;
+    if (!body.trim() && !reminders.length) discard();
     else {
       flush();
       latest.current.onClose();
@@ -98,9 +106,7 @@ export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, on
         }}
         title="Drag onto a day to move this note"
       >
-        <span className="sticky-day">
-          {formatWeekday(note.day)} {formatDate(note.day)}
-        </span>
+        <span className="sticky-day">{note.day && `${formatWeekday(note.day)} ${formatDate(note.day)}`}</span>
         <span className="spacer" />
         {NOTE_COLORS.map((color) => (
           <button
@@ -133,27 +139,37 @@ export function StickyNote({ note, anchor, zone, tags, onCreateTag, onChange, on
         <label className="sticky-remind">
           <input
             type="checkbox"
-            checked={note.remind !== null}
+            checked={!!remind}
             onChange={(e) =>
-              onChange({
-                remind: e.target.checked ? { at: defaultReminder(note.day, zone), timeZone: zone } : null,
-              })
+              e.target.checked
+                ? props.onAddReminder(defaultReminder(note.day ?? Temporal.Now.plainDateISO(zone), zone))
+                : props.onRemoveReminders(reminders.map((r) => r.id))
             }
           />
-          Remind
+          {reminders.length > 1 ? `${reminders.length} reminders` : "Remind"}
         </label>
-        {note.remind && (
+        {remind && reminders.length === 1 && (
           <input
             type="datetime-local"
             aria-label="Reminder time"
-            value={note.remind.at.toString({ smallestUnit: "minute" })}
+            value={remind.at.toString({ smallestUnit: "minute" })}
             onChange={(e) => {
               if (!e.target.value) return;
-              onChange({ remind: { at: Temporal.PlainDateTime.from(e.target.value), timeZone: note.remind!.timeZone } });
+              props.onMoveReminder(remind.id, Temporal.PlainDateTime.from(e.target.value));
             }}
           />
         )}
         <span className="spacer" />
+        <button
+          type="button"
+          title="Open as a page in Notes"
+          onClick={() => {
+            flush();
+            props.onOpenInNotes();
+          }}
+        >
+          Open
+        </button>
         <button type="button" onClick={() => setPicking((p) => !p)}>
           Tags
         </button>

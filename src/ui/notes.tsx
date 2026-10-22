@@ -1,11 +1,20 @@
 import type { EventOccurrence } from "../db/events";
+import type { NoteReminder } from "../db/noteReminders";
 import type { Note } from "../db/notes";
 import type { Tag } from "../db/tags";
+import { pageTitle } from "../notes/pages";
 import type { Temporal } from "../time/temporal";
+import { formatTime } from "./dates";
+import { BellIcon } from "./icons";
 
 /** What the calendar views need to show notes and day tags, and accept dropped notes. */
 export interface NoteHandlers {
   notesOn: (day: Temporal.PlainDate) => Note[];
+  /** Reminders from pages that go off on `day`, wherever the page is. */
+  remindersOn: (day: Temporal.PlainDate) => { reminder: NoteReminder; note: Note }[];
+  hasReminder: (note: Note) => boolean;
+  /** Opens a page in the notes view. */
+  openPage: (id: string) => void;
   tagsOn: (day: Temporal.PlainDate) => Tag[];
   tag: (id: string) => Tag | undefined;
   open: (note: Note, anchor: HTMLElement) => void;
@@ -22,9 +31,9 @@ export function startNoteDrag(e: React.DragEvent, note: Note) {
   e.dataTransfer.effectAllowed = "move";
 }
 
-/** The note's first line, for tooltips and notifications. */
+/** The note's title, for tooltips and notifications. */
 export function noteTitle(note: Note): string {
-  return note.body.trim().split("\n")[0] || "Empty note";
+  return note.body.trim() ? pageTitle(note) : "Empty note";
 }
 
 /** Props that make an element a place to drop a note on `day`. */
@@ -73,7 +82,8 @@ export function dayTagStyle(tags: Tag[]): { className: string; style?: React.CSS
 /** A day's notes, folded down to small paper squares until opened. */
 export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers: NoteHandlers }) {
   const notes = handlers.notesOn(day);
-  if (!notes.length) return null;
+  const reminders = handlers.remindersOn(day);
+  if (!notes.length && !reminders.length) return null;
   return (
     <span className="day-notes">
       {notes.map((note) => {
@@ -82,7 +92,7 @@ export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers:
           <button
             type="button"
             key={note.id}
-            className={`note-marker paper-${note.color}${note.remind ? " has-reminder" : ""}`}
+            className={`note-marker paper-${note.color}${handlers.hasReminder(note) ? " has-reminder" : ""}`}
             style={notePaperStyle(tag)}
             title={noteTitle(note)}
             aria-label={`Note: ${noteTitle(note)}`}
@@ -96,6 +106,22 @@ export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers:
           />
         );
       })}
+      {reminders.map(({ reminder, note }) => (
+        <button
+          type="button"
+          key={reminder.id}
+          className="reminder-marker"
+          title={`${formatTime(reminder.at.toPlainTime())} · ${noteTitle(note)}`}
+          aria-label={`Reminder: ${noteTitle(note)}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlers.openPage(note.id);
+          }}
+          onDoubleClick={(e) => e.stopPropagation()}
+        >
+          <BellIcon />
+        </button>
+      ))}
     </span>
   );
 }

@@ -50,6 +50,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0007_event_tags.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "notebooks",
+            sql: include_str!("../migrations/0008_notebooks.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
