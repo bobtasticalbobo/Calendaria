@@ -120,6 +120,20 @@ rendered, with checklists you can tick.
 
 Notes from before 0.7.0 are in *Notebook > Day notes*.
 
+### Tasks
+
+Right-click any notebook, chapter or page and pick **Make a task** to give it
+a box to tick. Ticked tasks stay in the tree, crossed out, for a week, then
+hide; tick **Completed tasks** at the top of the tree to see them again.
+
+**Make important…** sets the day a task must be done by (its date shows next
+to it, orange on the day and red once late). From 09:00 that day the app asks
+"Is this done?" with a notification and a card in the corner (**Done** ticks
+it, **Not yet** waits for the next time). It asks every 4 hours on the day,
+every 2 hours the day after, then hourly, then every half hour from the third
+day late, between 08:00 and 22:00, until the task is ticked. If the app was
+closed, it asks as soon as it opens.
+
 ## Tags
 
 Right-click an event to pick its tags, or open it and use **Tags** (type a name and press Enter

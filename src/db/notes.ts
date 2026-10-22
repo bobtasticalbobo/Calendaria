@@ -2,6 +2,7 @@ import { Temporal } from "../time/temporal";
 import type { SqlDriver } from "./driver";
 import { DEFAULT_CHAPTER_ID } from "./notebooks";
 import { NoteReminderRepository } from "./noteReminders";
+import { TASK_COLUMNS, type TaskFields, type TaskRow, taskFromRow } from "./tasks";
 import {
   type Clock,
   type SyncedRecord,
@@ -17,7 +18,7 @@ export const NOTE_COLORS = ["yellow", "pink", "blue", "green"] as const;
 export type NoteColor = (typeof NOTE_COLORS)[number];
 
 /** A page in a chapter. Notes on the calendar are pages linked to a day. */
-export interface Note extends SyncedRecord {
+export interface Note extends SyncedRecord, TaskFields {
   chapterId: string;
   /** The calendar day the page is linked to, if any. */
   day: Temporal.PlainDate | null;
@@ -41,7 +42,7 @@ export interface NoteInput {
   tags?: string[];
 }
 
-interface NoteRow extends SyncedRow {
+interface NoteRow extends SyncedRow, TaskRow {
   chapter_id: string | null;
   day: string | null;
   body: string;
@@ -52,6 +53,8 @@ interface NoteRow extends SyncedRow {
 }
 
 const COLUMNS = "id, chapter_id, day, body, color, pinned, position, tags, created_at, updated_at, deleted_at";
+/** Read with the task columns, which are only written by TaskRepository. */
+const READ = `${COLUMNS}, ${TASK_COLUMNS}`;
 
 /** How long deleted pages stay in the trash. */
 export const TRASH_DAYS = 30;
@@ -59,6 +62,7 @@ export const TRASH_DAYS = 30;
 function fromRow(row: NoteRow): Note {
   return {
     ...syncedFieldsFromRow(row),
+    ...taskFromRow(row),
     chapterId: row.chapter_id ?? DEFAULT_CHAPTER_ID,
     day: row.day ? Temporal.PlainDate.from(row.day) : null,
     body: row.body,
@@ -82,14 +86,14 @@ export class NoteRepository {
 
   /** Includes deleted notes, since sync needs to see tombstones. */
   async get(id: string): Promise<Note | null> {
-    const rows = await this.db.select<NoteRow>(`SELECT ${COLUMNS} FROM notes WHERE id = $1`, [id]);
+    const rows = await this.db.select<NoteRow>(`SELECT ${READ} FROM notes WHERE id = $1`, [id]);
     return rows.length ? fromRow(rows[0]) : null;
   }
 
   /** Every live page. A notebook is small enough to hold in memory for the tree, search and links. */
   async list(): Promise<Note[]> {
     const rows = await this.db.select<NoteRow>(
-      `SELECT ${COLUMNS} FROM notes WHERE deleted_at IS NULL ORDER BY position, id`,
+      `SELECT ${READ} FROM notes WHERE deleted_at IS NULL ORDER BY position, id`,
     );
     return rows.map(fromRow);
   }
@@ -97,7 +101,7 @@ export class NoteRepository {
   /** Live notes on the days from `first` to `last`, inclusive, oldest first. */
   async listOnDays(first: Temporal.PlainDate, last: Temporal.PlainDate): Promise<Note[]> {
     const rows = await this.db.select<NoteRow>(
-      `SELECT ${COLUMNS} FROM notes
+      `SELECT ${READ} FROM notes
        WHERE deleted_at IS NULL AND day >= $1 AND day <= $2
        ORDER BY id`,
       [first.toString(), last.toString()],
@@ -109,7 +113,7 @@ export class NoteRepository {
   async listTrash(): Promise<Note[]> {
     const since = toTimestamp(new Date(this.clock().getTime() - TRASH_DAYS * 86_400_000));
     const rows = await this.db.select<NoteRow>(
-      `SELECT ${COLUMNS} FROM notes WHERE deleted_at IS NOT NULL AND deleted_at >= $1 ORDER BY deleted_at DESC`,
+      `SELECT ${READ} FROM notes WHERE deleted_at IS NOT NULL AND deleted_at >= $1 ORDER BY deleted_at DESC`,
       [since],
     );
     return rows.map(fromRow);
@@ -135,6 +139,9 @@ export class NoteRepository {
       pinned: input.pinned ?? false,
       position,
       tags: [...new Set(input.tags ?? [])],
+      task: false,
+      doneAt: null,
+      dueDay: null,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

@@ -9,31 +9,32 @@ import {
   toTimestamp,
 } from "./records";
 import { TAG_COLORS } from "./tags";
+import { TASK_COLUMNS, type TaskFields, type TaskRow, taskFromRow } from "./tasks";
 
 /** Made by migration 0008 with these ids on every device, so they never come in twos. */
 export const DEFAULT_NOTEBOOK_ID = "019a0a00-0000-7000-8000-000000000001";
 /** Where notes made on the calendar go, and pages whose chapter is gone. */
 export const DEFAULT_CHAPTER_ID = "019a0a00-0000-7000-8000-000000000002";
 
-export interface Notebook extends SyncedRecord {
+export interface Notebook extends SyncedRecord, TaskFields {
   name: string;
   color: string;
   position: number;
 }
 
-export interface Chapter extends SyncedRecord {
+export interface Chapter extends SyncedRecord, TaskFields {
   notebookId: string;
   name: string;
   position: number;
 }
 
-interface NotebookRow extends SyncedRow {
+interface NotebookRow extends SyncedRow, TaskRow {
   name: string;
   color: string;
   position: number;
 }
 
-interface ChapterRow extends SyncedRow {
+interface ChapterRow extends SyncedRow, TaskRow {
   notebook_id: string;
   name: string;
   position: number;
@@ -41,6 +42,8 @@ interface ChapterRow extends SyncedRow {
 
 const NOTEBOOK_COLUMNS = "id, name, color, position, created_at, updated_at, deleted_at";
 const CHAPTER_COLUMNS = "id, notebook_id, name, position, created_at, updated_at, deleted_at";
+
+const NO_TASK: TaskFields = { task: false, doneAt: null, dueDay: null };
 
 function validName(name: string, what: string): string {
   const trimmed = name.trim();
@@ -62,17 +65,24 @@ export class NotebookRepository {
 
   async listNotebooks(): Promise<Notebook[]> {
     const rows = await this.db.select<NotebookRow>(
-      `SELECT ${NOTEBOOK_COLUMNS} FROM notebooks WHERE deleted_at IS NULL ORDER BY position, id`,
+      `SELECT ${NOTEBOOK_COLUMNS}, ${TASK_COLUMNS} FROM notebooks WHERE deleted_at IS NULL ORDER BY position, id`,
     );
-    return rows.map((r) => ({ ...syncedFieldsFromRow(r), name: r.name, color: r.color, position: r.position }));
+    return rows.map((r) => ({
+      ...syncedFieldsFromRow(r),
+      ...taskFromRow(r),
+      name: r.name,
+      color: r.color,
+      position: r.position,
+    }));
   }
 
   async listChapters(): Promise<Chapter[]> {
     const rows = await this.db.select<ChapterRow>(
-      `SELECT ${CHAPTER_COLUMNS} FROM chapters WHERE deleted_at IS NULL ORDER BY position, id`,
+      `SELECT ${CHAPTER_COLUMNS}, ${TASK_COLUMNS} FROM chapters WHERE deleted_at IS NULL ORDER BY position, id`,
     );
     return rows.map((r) => ({
       ...syncedFieldsFromRow(r),
+      ...taskFromRow(r),
       notebookId: r.notebook_id,
       name: r.name,
       position: r.position,
@@ -91,6 +101,7 @@ export class NotebookRepository {
       name: validName(name, "Notebook"),
       color: validColor(color ?? TAG_COLORS[Number(count) % TAG_COLORS.length]),
       position: (last ?? 0) + 1,
+      ...NO_TASK,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -131,6 +142,7 @@ export class NotebookRepository {
       notebookId,
       name: validName(name, "Chapter"),
       position: (last ?? 0) + 1,
+      ...NO_TASK,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,

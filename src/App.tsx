@@ -25,6 +25,8 @@ import { SettingsDialog } from "./ui/SettingsDialog";
 import { Popover, TagPicker } from "./ui/TagPicker";
 import { useReminders } from "./ui/useReminders";
 import { type NotesFocus, NotesView } from "./notes/NotesView";
+import { TaskNags } from "./notes/TaskNags";
+import { TaskRepository } from "./db/tasks";
 import "./App.css";
 
 interface Repos {
@@ -35,6 +37,7 @@ interface Repos {
   notes: NoteRepository;
   notebooks: NotebookRepository;
   reminders: NoteReminderRepository;
+  tasks: TaskRepository;
   tags: TagRepository;
 }
 
@@ -110,6 +113,7 @@ export default function App() {
         notes: new NoteRepository(db),
         notebooks: new NotebookRepository(db),
         reminders: new NoteReminderRepository(db),
+        tasks: new TaskRepository(db),
         tags: new TagRepository(db),
       });
     })().catch((e) => setError(String(e)));
@@ -567,6 +571,15 @@ export default function App() {
           onClose={() => setOpenNote(null)}
         />
       )}
+
+      <TaskNags
+        tasks={repos.tasks}
+        zone={zone}
+        version={version}
+        onDone={changed}
+        onOpen={(task) => openInNotes(task.table === "notes" ? { pageId: task.id } : {})}
+        onError={(e) => setError(String(e))}
+      />
 
       {dialog && (
         <EventDialog
