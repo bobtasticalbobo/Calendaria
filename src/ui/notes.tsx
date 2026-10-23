@@ -18,7 +18,8 @@ export interface NoteHandlers {
   tagsOn: (day: Temporal.PlainDate) => Tag[];
   tag: (id: string) => Tag | undefined;
   open: (note: Note, anchor: HTMLElement) => void;
-  move: (id: string, day: Temporal.PlainDate) => void;
+  /** `boardTime` places the note on the day's board, null takes it off, undefined keeps it. */
+  move: (id: string, day: Temporal.PlainDate, boardTime?: Temporal.PlainTime | null) => void;
   menu: (e: React.MouseEvent, day: Temporal.PlainDate, time?: Temporal.PlainTime) => void;
   /** Right-click on an event: pick its tags. */
   eventMenu: (e: React.MouseEvent, item: EventOccurrence) => void;
@@ -26,9 +27,21 @@ export interface NoteHandlers {
 
 export const NOTE_DRAG_TYPE = "application/x-calendaria-note";
 
-export function startNoteDrag(e: React.DragEvent, note: Note) {
+/** How far below the dragged note's top it was grabbed, so it lands where it is seen. */
+let grabOffset = 0;
+
+export function startNoteDrag(e: React.DragEvent, note: Note, grabbedAt = 0) {
   e.dataTransfer.setData(NOTE_DRAG_TYPE, note.id);
   e.dataTransfer.effectAllowed = "move";
+  grabOffset = grabbedAt;
+}
+
+export function noteGrabOffset(): number {
+  return grabOffset;
+}
+
+export function isNoteDrag(e: React.DragEvent): boolean {
+  return e.dataTransfer.types.includes(NOTE_DRAG_TYPE);
 }
 
 /** The note's title, for tooltips and notifications. */
@@ -36,12 +49,14 @@ export function noteTitle(note: Note): string {
   return note.body.trim() ? pageTitle(note) : "Empty note";
 }
 
-/** Props that make an element a place to drop a note on `day`. */
-export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers) {
-  const accepts = (e: React.DragEvent) => e.dataTransfer.types.includes(NOTE_DRAG_TYPE);
+/**
+ * Props that make an element a place to drop a note on `day`. Pass null as
+ * `boardTime` to take dropped notes off the board.
+ */
+export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers, boardTime?: null) {
   return {
     onDragOver(e: React.DragEvent<HTMLElement>) {
-      if (!accepts(e)) return;
+      if (!isNoteDrag(e)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       e.currentTarget.classList.add("note-drop");
@@ -54,7 +69,7 @@ export function noteDropTarget(day: Temporal.PlainDate, handlers: NoteHandlers) 
       const id = e.dataTransfer.getData(NOTE_DRAG_TYPE);
       if (!id) return;
       e.preventDefault();
-      handlers.move(id, day);
+      handlers.move(id, day, boardTime);
     },
   };
 }
@@ -80,8 +95,17 @@ export function dayTagStyle(tags: Tag[]): { className: string; style?: React.CSS
 }
 
 /** A day's notes, folded down to small paper squares until opened. */
-export function DayNotes({ day, handlers }: { day: Temporal.PlainDate; handlers: NoteHandlers }) {
-  const notes = handlers.notesOn(day);
+export function DayNotes({
+  day,
+  handlers,
+  unplacedOnly = false,
+}: {
+  day: Temporal.PlainDate;
+  handlers: NoteHandlers;
+  /** Leave out notes that sit on the board, which shows them itself. */
+  unplacedOnly?: boolean;
+}) {
+  const notes = handlers.notesOn(day).filter((n) => !unplacedOnly || !n.boardTime);
   const reminders = handlers.remindersOn(day);
   if (!notes.length && !reminders.length) return null;
   return (

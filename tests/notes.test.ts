@@ -8,6 +8,7 @@ import { createPartlyMigratedDriver, createTestDriver } from "./sqliteDriver";
 const ZONE = "Europe/Stockholm";
 const date = Temporal.PlainDate.from;
 const at = Temporal.PlainDateTime.from;
+const time = Temporal.PlainTime.from;
 const instant = Temporal.Instant.from;
 
 let now = Date.parse("2026-10-22T12:00:00Z");
@@ -88,6 +89,25 @@ describe("NoteRepository", () => {
     expect(moved.day?.toString()).toBe("2026-10-27");
     expect(await reminders.due(instant("2026-10-27T07:59Z"), instant("2026-10-27T08:00Z"))).toHaveLength(1);
     expect((await reminders.get(other.id))!.at.toString()).toBe("2026-11-02T10:00:00");
+  });
+
+  it("places notes on the board and keeps them there across days", async () => {
+    const note = await notes.create({ day: date("2026-10-23"), body: "Bring slides", boardTime: time("18:30") });
+    expect((await notes.get(note.id))!.boardTime?.toString()).toBe("18:30:00");
+    // Dropped on another day's header: the day changes, the time stays unless taken off.
+    const kept = await notes.moveToDay(note.id, date("2026-10-24"));
+    expect(kept.boardTime?.toString()).toBe("18:30:00");
+    const placed = await notes.moveToDay(note.id, date("2026-10-22"), time("09:15"));
+    expect([placed.day?.toString(), placed.boardTime?.toString()]).toEqual(["2026-10-22", "09:15:00"]);
+    const off = await notes.moveToDay(note.id, date("2026-10-22"), null);
+    expect(off.boardTime).toBeNull();
+    expect((await notes.get(note.id))!.boardTime).toBeNull();
+  });
+
+  it("only keeps a board time on pages linked to a day", async () => {
+    expect((await notes.create({ body: "loose", boardTime: time("10:00") })).boardTime).toBeNull();
+    const note = await notes.create({ day: date("2026-10-23"), boardTime: time("10:00") });
+    expect((await notes.update(note.id, { day: null })).boardTime).toBeNull();
   });
 
   it("removes a reminder", async () => {
