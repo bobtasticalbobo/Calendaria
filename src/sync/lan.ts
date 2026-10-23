@@ -351,7 +351,7 @@ export class LanSync {
     throw new PairingError(
       refused
         ? "The PC didn't accept that code. Check it, or make a new one (codes last 10 minutes)."
-        : "Found the PC but couldn't get through. On the PC, set the network to Private and allow Calendaria through Windows Firewall.",
+        : "Couldn't get through to the PC. On the phone, allow Calendaria to find nearby devices (Android settings > Apps > Calendaria > Permissions). On the PC, set the network to Private and allow Calendaria through Windows Firewall.",
     );
   }
 
