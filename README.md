@@ -110,6 +110,11 @@ rendered, with checklists you can tick.
   in the *Day notes* chapter), or **Notes for this day** for every page linked
   to it, mentioning it, or reminding you on it. Reminders show as a bell on
   their day. Dragging a note to another day moves its reminders on that day.
+- **On the board.** In the week and day views, drag a note from a day's header
+  onto the hours to pin it at a time. Drop it near an event's start or end and
+  it sticks to that edge; anywhere else it lands on the nearest quarter hour.
+  Drag it around freely, or back onto a day's header to take it off the board.
+  Right-click an empty time and pick **Note** to make one right there.
 - **Links.** `[[Page title]]` links to another page (or makes it), and each
   page lists the pages linking to it.
 - **Finding things.** Search (Ctrl+K) matches every word in titles, text and

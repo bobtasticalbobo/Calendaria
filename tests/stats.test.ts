@@ -48,10 +48,15 @@ describe("task history", () => {
   it("counts tasks ticked before the history existed", async () => {
     const { driver, migrateRest } = createPartlyMigratedDriver(9);
     const notebooks = new NotebookRepository(driver, clock);
-    const oldNotes = new NoteRepository(driver, clock);
     const oldTasks = new TaskRepository(driver, clock);
     const { chapter } = await notebooks.createNotebook("Media");
-    const page = await oldNotes.create({ chapterId: chapter.id, body: "Stalker\nmore" });
+    // Written as 0.8.0 stored pages, since today's NoteRepository expects later columns.
+    const page = { id: "019a0b00-0000-7000-8000-000000000001" };
+    await driver.execute(
+      `INSERT INTO notes (id, chapter_id, body, color, pinned, position, tags, created_at, updated_at)
+       VALUES ($1, $2, 'Stalker\nmore', 'yellow', 0, 1, '[]', $3, $3)`,
+      [page.id, chapter.id, "2026-10-19T09:00:00.000Z"],
+    );
     // What 0.8.0 did: tick without any history.
     await driver.execute("UPDATE notes SET task = 1, done_at = '2026-10-19T10:00:00.000Z' WHERE id = $1", [page.id]);
     await driver.execute("UPDATE chapters SET task = 1, done_at = '2026-10-18T10:00:00.000Z' WHERE id = $1", [

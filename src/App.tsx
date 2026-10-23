@@ -189,9 +189,9 @@ export default function App() {
       tagsOn: (day) => (dayTags.get(day.toString()) ?? []).flatMap((id) => tagById.get(id) ?? []),
       tag: (id) => tagById.get(id),
       open: (note, anchor) => setOpenNote({ id: note.id, anchor: anchor.getBoundingClientRect() }),
-      move: (id, day) => {
+      move: (id, day, boardTime) => {
         setOpenNote(null);
-        repos?.notes.moveToDay(id, day).then(changed, (e) => setError(String(e)));
+        repos?.notes.moveToDay(id, day, boardTime).then(changed, (e) => setError(String(e)));
       },
       eventMenu: (e, item) => {
         e.preventDefault();
@@ -258,7 +258,8 @@ export default function App() {
   }
 
   async function addNote(target: MenuTarget) {
-    const note = await repos!.notes.create({ day: target.day });
+    // Made from the board, the note sits where it was asked for.
+    const note = await repos!.notes.create({ day: target.day, boardTime: target.time ?? null });
     setNotes((current) => [...current, note]);
     edited();
     setOpenNote({ id: note.id, anchor: new DOMRect(target.x, target.y, 0, 0) });

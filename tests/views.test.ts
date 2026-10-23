@@ -4,6 +4,8 @@ import { Temporal } from "../src/time/temporal";
 import type { EventTiming } from "../src/time/timing";
 import { dayRange, startOfWeek, visibleDays } from "../src/ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "../src/ui/edit";
+import type { Note } from "../src/db/notes";
+import { BOARD_NOTE_MINUTES, layoutBoardNotes, snapToBoard } from "../src/ui/board";
 import { itemsOnDay, layoutDay } from "../src/ui/layout";
 
 const ZONE = "Europe/Stockholm";
@@ -111,5 +113,36 @@ describe("seriesTimingFromOccurrenceEdit", () => {
       start: date("2026-10-05"),
       end: date("2026-10-06"),
     });
+  });
+});
+
+describe("notes on the board", () => {
+  const day = date("2026-10-23");
+  const segments = layoutDay(
+    itemsOnDay([item("Lecture", "2026-10-23T16:00", "2026-10-23T17:30")], day, ZONE).timed,
+    day,
+    ZONE,
+  );
+
+  it("sticks to the nearest edge of an event when dropped close to it", () => {
+    expect(snapToBoard(16 * 60 + 12, segments)).toMatchObject({ minute: 16 * 60, event: segments[0] });
+    expect(snapToBoard(17 * 60 + 41, segments)).toMatchObject({ minute: 17 * 60 + 30, event: segments[0] });
+  });
+
+  it("sits on the nearest quarter hour in empty time", () => {
+    const spot = snapToBoard(12 * 60 + 8, segments);
+    expect(spot).toEqual({ minute: 12 * 60 + 15 });
+    expect(snapToBoard(-30, []).minute).toBe(0);
+    expect(snapToBoard(24 * 60, []).minute).toBe(24 * 60 - BOARD_NOTE_MINUTES);
+  });
+
+  it("fans out notes that would cover each other", () => {
+    const note = (id: string, at: string | null) => ({ id, boardTime: at && Temporal.PlainTime.from(at) }) as Note;
+    const laid = layoutBoardNotes([note("c", "10:00"), note("a", "09:00"), note("b", "09:20"), note("x", null)]);
+    expect(laid.map((b) => [b.note.id, b.minute, b.offset])).toEqual([
+      ["a", 540, 0],
+      ["b", 560, 1],
+      ["c", 600, 0],
+    ]);
   });
 });

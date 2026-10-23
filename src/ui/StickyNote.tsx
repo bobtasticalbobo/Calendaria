@@ -3,7 +3,7 @@ import type { NoteReminder } from "../db/noteReminders";
 import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
-import { formatDate, formatWeekday } from "./dates";
+import { formatDate, formatTime, formatWeekday } from "./dates";
 import { notePaperStyle, startNoteDrag } from "./notes";
 import { TagLabels, TagPicker } from "./TagPicker";
 
@@ -75,7 +75,7 @@ export function StickyNote(props: Props) {
     const onMouseDown = (e: Event) => {
       if (ref.current?.contains(e.target as Node)) return;
       // Opening another note's marker is handled by its own click.
-      if ((e.target as Element).closest?.(".note-marker")) return;
+      if ((e.target as Element).closest?.(".note-marker, .board-note")) return;
       close();
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
@@ -104,9 +104,10 @@ export function StickyNote(props: Props) {
           flush();
           startNoteDrag(e, note);
         }}
-        title="Drag onto a day to move this note"
+        title="Drag onto a day or a time to move this note"
       >
-        <span className="sticky-day">{note.day && `${formatWeekday(note.day)} ${formatDate(note.day)}`}</span>
+        <span className="sticky-day">{note.day && `${formatWeekday(note.day)} ${formatDate(note.day)}`}
+          {note.boardTime && ` · ${formatTime(note.boardTime)}`}</span>
         <span className="spacer" />
         {NOTE_COLORS.map((color) => (
           <button
