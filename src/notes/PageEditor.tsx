@@ -5,6 +5,7 @@ import type { Note, NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
+import { DateInput, DatePickButton, DateTimeInput, TimeInput } from "../ui/fields";
 import { BellIcon, CalendarIcon, CloseIcon, PinIcon } from "../ui/icons";
 import { Popover, TagLabels, TagPicker } from "../ui/TagPicker";
 import { type Edit, continueList, indentLines, insertText, toggleTaskAtCursor, toggleTaskLine } from "./editing";
@@ -186,14 +187,13 @@ export function PageEditor(props: Props) {
               </button>
             </span>
           ) : linkingDay ? (
-            <input
-              type="date"
+            <DateInput
               autoFocus
               aria-label="Day to link"
+              value={null}
               onBlur={() => setLinkingDay(false)}
-              onChange={(e) => {
-                if (!e.target.value) return;
-                onChange({ day: Temporal.PlainDate.from(e.target.value) });
+              onChange={(day) => {
+                onChange({ day });
                 setLinkingDay(false);
               }}
             />
@@ -287,13 +287,11 @@ export function PageEditor(props: Props) {
             <span>Double-click to write</span>
           )}
           <span className="spacer" />
-          <input
-            type="date"
+          <DatePickButton
             className="insert-date"
             title="Insert a date"
-            aria-label="Insert a date"
-            value=""
-            onChange={(e) => e.target.value && insertDate(Temporal.PlainDate.from(e.target.value))}
+            value={null}
+            onPick={insertDate}
             disabled={mode !== "edit"}
           />
         </footer>
@@ -335,14 +333,7 @@ export function PageEditor(props: Props) {
           <h3>Reminders</h3>
           {reminders.map((r) => (
             <div key={r.id} className="side-reminder">
-              <input
-                type="datetime-local"
-                aria-label="Reminder time"
-                value={r.at.toString({ smallestUnit: "minute" })}
-                onChange={(e) =>
-                  e.target.value && props.onMoveReminder(r.id, Temporal.PlainDateTime.from(e.target.value))
-                }
-              />
+              <DateTimeInput aria-label="Reminder" value={r.at} onChange={(at) => props.onMoveReminder(r.id, at)} />
               <button type="button" aria-label="Remove reminder" onClick={() => props.onRemoveReminder(r.id)}>
                 <CloseIcon />
               </button>
@@ -455,12 +446,7 @@ function RemindBar({ mention, reminder, defaultAt, onAdd, onRemove }: RemindProp
       ) : (
         <>
           <span>Remind me on {longDate(mention.date)} at</span>
-          <input
-            type="time"
-            aria-label="Reminder time"
-            value={time.toString({ smallestUnit: "minute" })}
-            onChange={(e) => e.target.value && setTime(Temporal.PlainTime.from(e.target.value))}
-          />
+          <TimeInput aria-label="Reminder time" value={time} onChange={setTime} />
           <button
             type="button"
             className="link accent"
@@ -499,12 +485,7 @@ function DateMenu({ mention, reminder, linked, defaultAt, onAdd, onRemove, onSho
       ) : (
         <div className="row">
           <span>Remind me at</span>
-          <input
-            type="time"
-            aria-label="Reminder time"
-            value={time.toString({ smallestUnit: "minute" })}
-            onChange={(e) => e.target.value && setTime(Temporal.PlainTime.from(e.target.value))}
-          />
+          <TimeInput aria-label="Reminder time" value={time} onChange={setTime} />
           <button
             type="button"
             className="link accent"

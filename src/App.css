@@ -826,12 +826,15 @@ button:hover {
   font-size: 0.75rem;
 }
 
-.sticky-foot input[type="datetime-local"] {
+.sticky-when input {
   padding: 2px 4px;
   font-size: 0.75rem;
   color: inherit;
-  color-scheme: light;
   background: rgb(255 255 255 / 0.35);
+}
+
+.sticky-when .date-pick button {
+  color: rgb(43 42 38 / 0.7);
 }
 
 .sticky-remind {
@@ -1425,17 +1428,8 @@ button:hover {
   color: var(--faint);
 }
 
-.insert-date {
-  width: 32px;
-  padding: 3px;
-  color: transparent;
-  background: none;
-  cursor: pointer;
-}
-
-.insert-date::-webkit-calendar-picker-indicator {
-  filter: invert(0.6);
-  cursor: pointer;
+.insert-date button {
+  color: var(--muted);
 }
 
 .remind-bar {
@@ -1633,9 +1627,12 @@ button:hover {
   margin-bottom: 2px;
 }
 
-.side-reminder input {
+.side-reminder .datetime-field {
   flex: 1;
   min-width: 0;
+}
+
+.side-reminder .typed-field input {
   padding: 3px 6px;
   font-size: 0.8rem;
 }
@@ -1849,7 +1846,11 @@ button:hover {
   gap: 8px;
 }
 
-.deadline-pick input {
+.deadline-pick .typed-field {
+  flex: 1;
+}
+
+.deadline-pick .typed-field input {
   flex: 1;
   background: var(--bg);
 }
@@ -2422,4 +2423,52 @@ input[type="checkbox"] {
 .heat-cell,
 .stat-tile {
   border-radius: var(--radius);
+}
+
+/* Date and time fields that always read dd/mm/yyyy and 00:00 (src/ui/fields.tsx). */
+.typed-field,
+.datetime-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.typed-field input {
+  min-width: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.typed-field input.invalid {
+  border-color: var(--danger);
+}
+
+.date-pick {
+  position: relative;
+  display: inline-flex;
+}
+
+.date-pick button {
+  display: flex;
+  padding: 4px;
+  color: var(--muted);
+  background: none;
+}
+
+.date-pick button:hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* The system calendar opens from this; it has to be rendered, but never seen. */
+.date-pick input[type="date"] {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }

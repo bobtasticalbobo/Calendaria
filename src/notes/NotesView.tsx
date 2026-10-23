@@ -14,6 +14,7 @@ import { Temporal } from "../time/temporal";
 import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
 import { ColorDots, Popover } from "../ui/TagPicker";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
+import { DateInput } from "../ui/fields";
 import { BellIcon, ChevronIcon, PinIcon, PlusIcon } from "../ui/icons";
 import { type EditorMode, PageEditor } from "./PageEditor";
 import { StatsView } from "./StatsView";
@@ -857,22 +858,11 @@ export function NotesView(props: Props) {
   );
 }
 
-/** A date field with a Set button, so a half-typed year isn't saved. */
+/** A deadline typed as dd/mm/yyyy and saved on Enter, or picked from the calendar. */
 function DateField({ value, onSet }: { value: Temporal.PlainDate | null; onSet: (day: Temporal.PlainDate) => void }) {
-  const [text, setText] = useState(value?.toString() ?? "");
-  const day = /^\d{4}-\d{2}-\d{2}$/.test(text) ? Temporal.PlainDate.from(text) : null;
   return (
-    <form
-      className="deadline-pick"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (day) onSet(day);
-      }}
-    >
-      <input type="date" aria-label="Deadline" autoFocus value={text} onChange={(e) => setText(e.target.value)} />
-      <button type="submit" className="link accent" disabled={!day}>
-        Set
-      </button>
-    </form>
+    <div className="deadline-pick">
+      <DateInput aria-label="Deadline" autoFocus value={value} onChange={onSet} />
+    </div>
   );
 }
