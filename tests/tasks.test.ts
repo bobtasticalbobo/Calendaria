@@ -69,7 +69,7 @@ describe("TaskRepository", () => {
   });
 
   it("starts the default notebook and chapter as non-tasks", async () => {
-    const [nb] = await notebooks.listNotebooks();
+    const nb = (await notebooks.listNotebooks()).find((n) => n.id === DEFAULT_NOTEBOOK_ID);
     expect(nb).toMatchObject({ id: DEFAULT_NOTEBOOK_ID, task: false, doneAt: null, dueDay: null });
     expect((await notebooks.listChapters())[0]).toMatchObject({ id: DEFAULT_CHAPTER_ID, task: false });
   });

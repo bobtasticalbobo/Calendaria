@@ -13,8 +13,12 @@ import { TASK_COLUMNS, type TaskFields, type TaskRow, taskFromRow } from "./task
 
 /** Made by migration 0008 with these ids on every device, so they never come in twos. */
 export const DEFAULT_NOTEBOOK_ID = "019a0a00-0000-7000-8000-000000000001";
-/** Where notes made on the calendar go, and pages whose chapter is gone. */
+/** The first notebook's first chapter: where new pages and pages whose chapter is gone go. */
 export const DEFAULT_CHAPTER_ID = "019a0a00-0000-7000-8000-000000000002";
+/** The "Calendar" notebook from migration 0012, fixed ids like the default ones. */
+export const CALENDAR_NOTEBOOK_ID = "019a0a00-0000-7000-8000-000000000003";
+/** Where notes made on the calendar go. */
+export const CALENDAR_CHAPTER_ID = "019a0a00-0000-7000-8000-000000000004";
 
 export interface Notebook extends SyncedRecord, TaskFields {
   name: string;
@@ -174,9 +178,10 @@ export class NotebookRepository {
     );
   }
 
-  /** Soft-deletes a chapter and moves its pages to the trash. The default chapter stays. */
+  /** Soft-deletes a chapter and moves its pages to the trash. The default and calendar chapters stay. */
   async removeChapter(id: string): Promise<void> {
-    if (id === DEFAULT_CHAPTER_ID) throw new Error("The day notes chapter can't be deleted");
+    if (id === DEFAULT_CHAPTER_ID) throw new Error("The first notebook's first chapter can't be deleted");
+    if (id === CALENDAR_CHAPTER_ID) throw new Error("The calendar's day notes chapter can't be deleted");
     const now = toTimestamp(this.clock());
     await this.db.execute(
       "UPDATE notes SET deleted_at = $1, updated_at = $1 WHERE chapter_id = $2 AND deleted_at IS NULL",
@@ -191,6 +196,7 @@ export class NotebookRepository {
   /** Soft-deletes a notebook with its chapters, and moves their pages to the trash. */
   async removeNotebook(id: string): Promise<void> {
     if (id === DEFAULT_NOTEBOOK_ID) throw new Error("The first notebook can't be deleted");
+    if (id === CALENDAR_NOTEBOOK_ID) throw new Error("The Calendar notebook can't be deleted");
     const chapters = await this.db.select<{ id: string }>(
       "SELECT id FROM chapters WHERE notebook_id = $1 AND deleted_at IS NULL",
       [id],

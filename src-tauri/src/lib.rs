@@ -76,6 +76,12 @@ fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0011_note_board_time.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "calendar notebook",
+            sql: include_str!("../migrations/0012_calendar_notebook.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

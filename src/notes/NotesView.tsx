@@ -1,5 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CALENDAR_CHAPTER_ID,
+  CALENDAR_NOTEBOOK_ID,
   type Chapter,
   DEFAULT_CHAPTER_ID,
   DEFAULT_NOTEBOOK_ID,
@@ -523,7 +525,7 @@ export function NotesView(props: Props) {
                               onSelect: () =>
                                 setRecolor({ id: notebook.id, x: e.clientX, y: e.clientY, color: notebook.color }),
                             },
-                            ...(notebook.id === DEFAULT_NOTEBOOK_ID
+                            ...(notebook.id === DEFAULT_NOTEBOOK_ID || notebook.id === CALENDAR_NOTEBOOK_ID
                               ? []
                               : [
                                   {
@@ -596,7 +598,7 @@ export function NotesView(props: Props) {
                                     ...taskMenu("chapters", chapter, e.clientX, e.clientY),
                                     { label: "New page", onSelect: () => newPage(chapter.id).catch(fail) },
                                     { label: "Rename", onSelect: () => setRenaming(chapter.id) },
-                                    ...(chapter.id === DEFAULT_CHAPTER_ID
+                                    ...(chapter.id === DEFAULT_CHAPTER_ID || chapter.id === CALENDAR_CHAPTER_ID
                                       ? []
                                       : [
                                           {
