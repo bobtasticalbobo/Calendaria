@@ -1,3 +1,5 @@
+mod lan;
+
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 /// Database file name, resolved by tauri-plugin-sql inside the app's data directory.
@@ -79,11 +81,27 @@ fn migrations() -> Vec<Migration> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .manage(lan::Lan::default())
+        .invoke_handler(tauri::generate_handler![
+            lan::lan_serve,
+            lan::lan_reply,
+            lan::lan_post,
+            lan::lan_advertise,
+            lan::lan_browse,
+            lan::lan_addresses,
+            lan::lan_device_name,
+        ]);
+    #[cfg(mobile)]
+    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    // Self-update is desktop only; phones install the newer APK instead.
+    #[cfg(desktop)]
+    let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+    builder
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(DB_URL, migrations())

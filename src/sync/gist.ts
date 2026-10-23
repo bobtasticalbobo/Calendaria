@@ -1,3 +1,8 @@
+import { SyncError } from "./sync";
+
+// Sync through a GitHub gist was replaced by home-network sync in 0.9. This
+// is what is left of it: enough to find the old gists and delete them.
+
 const API = "https://api.github.com";
 /** Every device with the same GitHub key finds the gist by this description. */
 export const GIST_DESCRIPTION = "Calendaria sync";
@@ -5,14 +10,7 @@ export const GIST_DESCRIPTION = "Calendaria sync";
 export const PLAIN_FILE = "calendaria.json";
 export const ENCRYPTED_FILE = "calendaria.enc.json";
 
-/** Opens the GitHub page that creates a key allowed to touch gists only. */
-export const NEW_KEY_URL = "https://github.com/settings/tokens/new?scopes=gist&description=Calendaria%20sync";
-
-export class SyncError extends Error {}
-
 interface GistFile {
-  content?: string;
-  truncated?: boolean;
   raw_url: string;
 }
 
@@ -22,7 +20,7 @@ interface Gist {
   files: Record<string, GistFile>;
 }
 
-/** The shared copy, kept as one JSON file in a private (secret) gist. */
+/** The old shared copies: JSON files in private (secret) gists. */
 export class GistStore {
   constructor(
     private readonly token: string,
@@ -59,30 +57,6 @@ export class GistStore {
       }
       if (gists.length < 100) return found;
     }
-  }
-
-  async create(file: string, content: string): Promise<string> {
-    const gist = await this.request<Gist>("POST", "/gists", {
-      description: GIST_DESCRIPTION,
-      public: false,
-      files: { [file]: { content } },
-    });
-    return gist.id;
-  }
-
-  /** The file's text, or null if the gist doesn't have it. */
-  async read(id: string, name: string): Promise<string | null> {
-    const gist = await this.request<Gist>("GET", `/gists/${id}`);
-    const file = gist.files[name];
-    if (!file) return null;
-    // The API cuts files over 1 MB short; the raw copy is complete.
-    return file.truncated || file.content === undefined
-      ? await (await this.fetcher(file.raw_url, { cache: "no-store" })).text()
-      : file.content;
-  }
-
-  async write(id: string, name: string, content: string): Promise<void> {
-    await this.request("PATCH", `/gists/${id}`, { files: { [name]: { content } } });
   }
 
   /** Deletes the gist and its history. */

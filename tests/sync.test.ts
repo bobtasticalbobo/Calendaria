@@ -11,53 +11,51 @@ import { TaskRepository } from "../src/db/tasks";
 import { SettingsRepository } from "../src/db/settings";
 import { TagRepository } from "../src/db/tags";
 import { importIcs } from "../src/import/importCalendar";
-import { ENCRYPTED_FILE, GistStore, PLAIN_FILE, SyncError } from "../src/sync/gist";
-import { syncDatabase } from "../src/sync/merge";
-import { connect, disconnect, syncOnce } from "../src/sync/sync";
+import { GIST_DESCRIPTION, GistStore } from "../src/sync/gist";
+import { DEFAULT_PORT, type Found, LanSync, PAIRING_MS, type Transport, parsePairing } from "../src/sync/lan";
+import { retireGist } from "../src/sync/sync";
 import { Temporal } from "../src/time/temporal";
 import { createTestDriver } from "./sqliteDriver";
 
 const ZONE = "Europe/Stockholm";
-const PASSPHRASE = "correct horse battery staple";
 const outlook = readFileSync(join(import.meta.dirname, "fixtures/outlook.ics"), "utf8");
 
-/** Stands in for GitHub: one account's gists, each a map of file name to text. */
-class FakeGists {
-  gists = new Map<string, Map<string, string>>();
-  writes = 0;
-  private next = 1;
-  store = () =>
-    ({
-      list: async () =>
-        [...this.gists].map(([id, files]) => ({ id, encrypted: files.has(ENCRYPTED_FILE) })),
-      create: async (name: string, content: string) => {
-        const id = `gist${this.next++}`;
-        this.gists.set(id, new Map([[name, content]]));
-        return id;
-      },
-      read: async (id: string, name: string) => {
-        const files = this.gists.get(id);
-        if (!files) throw new SyncError("not found");
-        return files.get(name) ?? null;
-      },
-      write: async (id: string, name: string, content: string) => {
-        this.writes++;
-        this.gists.get(id)!.set(name, content);
-      },
-      remove: async (id: string) => {
-        this.gists.delete(id);
-      },
-    }) as unknown as GistStore;
+/** Stands in for the home network: who answers at which address, and who announces themselves. */
+class FakeNetwork {
+  hosts = new Map<string, Device>();
+  /** Everything sent over the network, to check it's unreadable. */
+  wire: string[] = [];
 
-  /** Every file's text, as stored on "GitHub". */
-  allText(): string {
-    return [...this.gists.values()].flatMap((files) => [...files.values()]).join("\n");
+  transport(): Transport {
+    return {
+      post: async (url, body) => {
+        const { hostname, port } = new URL(url);
+        const device = this.hosts.get(hostname);
+        if (!device || device.port !== Number(port) || !device.online) throw new Error("unreachable");
+        this.wire.push(body);
+        const answer = await device.lan.handle(body);
+        this.wire.push(answer.body);
+        return answer;
+      },
+      browse: async () => {
+        const found: Found[] = [];
+        for (const [address, device] of this.hosts) {
+          const group = await device.lan.group();
+          if (device.online && device.port !== null && group && device.onWifi) {
+            found.push({ id: device.lan.id, name: device.name, group, port: device.port, addresses: [address] });
+          }
+        }
+        return found;
+      },
+    };
   }
 }
 
 /** Shared time across devices, moved forward a second at each read. */
 let now = Date.parse("2026-10-20T12:00:00Z");
 const clock = () => new Date((now += 1000));
+/** The time pairing codes are checked against, moved by hand. */
+let pairingNow = 0;
 
 class Device {
   db: SqlDriver = createTestDriver();
@@ -69,17 +67,42 @@ class Device {
   reminders = new NoteReminderRepository(this.db, clock);
   tasks = new TaskRepository(this.db, clock);
   tags = new TagRepository(this.db, clock);
+  lan: LanSync;
+  online = true;
+  /** Announces itself on the network (mDNS); off for a PC only reachable by address. */
+  onWifi = true;
 
-  constructor(private readonly github: FakeGists) {}
+  constructor(
+    network: FakeNetwork,
+    readonly name: string,
+    readonly address: string | null,
+    readonly port: number | null = address ? DEFAULT_PORT : null,
+  ) {
+    if (address) network.hosts.set(address, this);
+    this.lan = new LanSync(
+      this.db,
+      this.settings,
+      network.transport(),
+      async () => ({ name, port: this.port, addresses: address ? [address] : [] }),
+      clock,
+      () => pairingNow,
+    );
+  }
 
-  async start(passphrase = PASSPHRASE) {
+  async start() {
     await this.calendars.ensureDefault();
-    await connect(this.settings, "key", passphrase);
+    await this.lan.load();
     return this;
   }
 
-  sync() {
-    return syncOnce(this.db, this.settings, this.github.store, clock);
+  async sync() {
+    return (await this.lan.syncAll()).localChanged;
+  }
+
+  /** Pairs with `pc` the way a person would: `pc` shows a code, this device types it. */
+  async pairWith(pc: Device) {
+    const { code } = await pc.lan.startPairing();
+    await this.lan.join(code);
   }
 
   async eventTitles() {
@@ -106,14 +129,17 @@ function meeting(calendarId: string, title: string) {
 }
 
 describe("sync between devices", () => {
-  let github: FakeGists;
+  let network: FakeNetwork;
   let laptop: Device;
   let pc: Device;
 
   beforeEach(async () => {
-    github = new FakeGists();
-    laptop = await new Device(github).start();
-    pc = await new Device(github).start();
+    network = new FakeNetwork();
+    pairingNow = 0;
+    // The laptop's Personal calendar is the older one, so it is the one both keep.
+    laptop = await new Device(network, "Laptop", "192.168.1.11").start();
+    pc = await new Device(network, "PC", "192.168.1.10").start();
+    await laptop.pairWith(pc);
   });
 
   it("brings the laptop's calendar to the PC", async () => {
@@ -122,7 +148,6 @@ describe("sync between devices", () => {
     await laptop.notes.create({ day: Temporal.PlainDate.from("2026-10-21"), body: "Bring card" });
 
     await laptop.sync();
-    expect(await pc.sync()).toBe(true);
 
     expect(await pc.eventTitles()).toEqual(["Dentist"]);
     const notes = await pc.notes.listOnDays(Temporal.PlainDate.from("2026-10-21"), Temporal.PlainDate.from("2026-10-21"));
@@ -142,7 +167,7 @@ describe("sync between devices", () => {
     const [synced] = (await pc.notes.list()).filter((n) => n.id === page.id);
     expect(synced).toMatchObject({ body: "Oslo trip\nFly 24/10/2026", pinned: true, chapterId: chapter.id });
     expect((await pc.reminders.list()).map((r) => r.at.toString())).toEqual(["2026-10-24T06:00:00"]);
-    expect(github.allText()).not.toContain("Oslo");
+    expect(network.wire.join("\n")).not.toContain("Oslo");
 
     await pc.notebooks.removeNotebook(notebook.id);
     await pc.sync();
@@ -254,64 +279,152 @@ describe("sync between devices", () => {
     expect(await laptop.tags.onDays(day, day)).toEqual(new Map());
   });
 
-  it("only writes to GitHub when something changed", async () => {
-    await laptop.sync();
-    await pc.sync();
-    await laptop.sync();
-    const writes = github.writes;
-    await laptop.sync();
-    await pc.sync();
-    expect(github.writes).toBe(writes);
-  });
-
-  it("stores only encrypted data on GitHub", async () => {
+  it("sends only encrypted data over the network", async () => {
     const [personal] = await laptop.calendars.list();
     await laptop.events.create(meeting(personal.id, "Dentist"));
     await laptop.notes.create({ day: Temporal.PlainDate.from("2026-10-21"), body: "Bring card" });
     await laptop.sync();
 
-    const text = github.allText();
-    expect(JSON.parse(text)).toMatchObject({ format: "calendaria-encrypted" });
+    const text = network.wire.join("\n");
+    expect(network.wire.length).toBeGreaterThan(0);
     expect(text).not.toContain("Dentist");
     expect(text).not.toContain("Bring card");
+    expect(text).not.toContain("Personal");
   });
 
-  it("refuses a different passphrase without touching the shared copy", async () => {
+  it("brings the phone up to date with both PCs, which also sync with each other", async () => {
+    const phone = await new Device(network, "Phone", null).start();
+    await phone.pairWith(pc);
+    await laptop.events.create(meeting((await laptop.calendars.list())[0].id, "From laptop"));
+    await phone.events.create(meeting((await phone.calendars.list())[0].id, "From phone"));
+
+    await phone.sync();
+    await laptop.sync();
+    await phone.sync();
+    for (const device of [phone, pc, laptop]) {
+      expect(await device.eventTitles()).toEqual(["From laptop", "From phone"]);
+    }
+    // The phone found the laptop on the Wi-Fi through the shared group, without pairing with it.
+    expect(phone.lan.peerList().map((p) => p.name)).toEqual(["Laptop", "PC"]);
+    // The PCs don't try to reach the phone, which serves nothing.
+    expect(pc.lan.peerList().find((p) => p.name === "Phone")?.port).toBeNull();
+  });
+
+  it("syncs only when the PC can be reached, e.g. at home", async () => {
+    const phone = await new Device(network, "Phone", null).start();
+    await phone.pairWith(pc);
+    laptop.online = false;
+    await phone.events.create(meeting((await phone.calendars.list())[0].id, "Written on the bus"));
+    pc.online = false;
+    expect(await phone.lan.syncAll()).toEqual({ localChanged: false, reached: [] });
+
+    pc.online = true;
+    expect((await phone.lan.syncAll()).reached).toEqual([pc.lan.id]);
+    expect(await pc.eventTitles()).toEqual(["Written on the bus"]);
+  });
+
+  it("reaches a PC by its remembered address when it isn't announced, as over Tailscale", async () => {
+    const away = await new Device(network, "Phone", null).start();
+    const { link } = await pc.lan.startPairing();
+    pc.onWifi = false;
+    laptop.onWifi = false;
+    await away.lan.join(link);
+    await away.events.create(meeting((await away.calendars.list())[0].id, "From afar"));
+    expect((await away.lan.syncAll()).reached).toEqual([pc.lan.id]);
+    expect(await pc.eventTitles()).toEqual(["From afar"]);
+  });
+
+  it("joins with a typed code, found on the network, or with the QR link", async () => {
+    const { code, link } = await pc.lan.startPairing();
+    expect(code).toMatch(/^[2-9A-Z]{4}-[2-9A-Z]{4}-[2-9A-Z]{4}$/);
+    expect(parsePairing(link)).toEqual({ code, addresses: ["192.168.1.10"], port: DEFAULT_PORT });
+    expect(parsePairing(code.toLowerCase().replaceAll("-", " ")).code).toBe(code);
+
+    const phone = await new Device(network, "Phone", null).start();
+    await phone.lan.join(code.toLowerCase());
+    expect(await phone.lan.group()).toBe(await pc.lan.group());
+  });
+
+  it("accepts a code once, for ten minutes, and gives up after a few wrong guesses", async () => {
+    const phone = await new Device(network, "Phone", null).start();
+    const tablet = await new Device(network, "Tablet", null).start();
+    const { code } = await pc.lan.startPairing();
+    await phone.lan.join(code);
+    await expect(tablet.lan.join(code)).rejects.toThrow("didn't accept");
+
+    const late = await pc.lan.startPairing();
+    pairingNow += PAIRING_MS;
+    await expect(tablet.lan.join(late.code)).rejects.toThrow("didn't accept");
+
+    const guarded = await pc.lan.startPairing();
+    for (let i = 0; i < 5; i++) await expect(tablet.lan.join("AAAA-AAAA-AAAA")).rejects.toThrow();
+    await expect(tablet.lan.join(guarded.code)).rejects.toThrow("didn't accept");
+    expect(await tablet.lan.group()).toBeNull();
+  });
+
+  it("ignores devices from another group, and they can't read or change anything", async () => {
     await laptop.events.create(meeting((await laptop.calendars.list())[0].id, "Private"));
     await laptop.sync();
-    const before = github.allText();
+    // A neighbour's setup on the same network.
+    const stranger = await new Device(network, "Stranger", "192.168.1.66").start();
+    const strangerPhone = await new Device(network, "Stranger's phone", null).start();
+    await strangerPhone.pairWith(stranger);
+    await strangerPhone.events.create(meeting((await strangerPhone.calendars.list())[0].id, "Theirs"));
 
-    const stranger = await new Device(github).start("wrong passphrase");
-    await expect(stranger.sync()).rejects.toThrow("passphrase doesn't match");
-    expect(github.allText()).toBe(before);
-    expect(await stranger.eventTitles()).toEqual([]);
-  });
-
-  it("moves an unencrypted copy from an older version into the encrypted one, then deletes it", async () => {
-    // What 0.4 and 0.5 wrote: the snapshot as plain JSON.
-    const old = new Device(github);
-    await old.calendars.ensureDefault();
-    await old.events.create(meeting((await old.calendars.list())[0].id, "From the old version"));
-    const { snapshot } = await syncDatabase(old.db, null, clock);
-    await github.store().create(PLAIN_FILE, JSON.stringify(snapshot));
+    // With its own PC away, the stranger's phone finds only devices it has no key for.
+    await strangerPhone.lan.forget(stranger.lan.id);
+    stranger.online = false;
+    expect(await strangerPhone.lan.syncAll()).toEqual({ localChanged: false, reached: [] });
+    const forged = await pc.lan.handle(
+      JSON.stringify({ v: 1, kind: "sync", g: await pc.lan.group(), iv: "AAAAAAAAAAAAAAAA", data: "AAAA" }),
+    );
+    expect(forged.status).toBe(403);
 
     await laptop.sync();
-    expect([...github.gists.values()].map((files) => [...files.keys()])).toEqual([[ENCRYPTED_FILE]]);
-    expect(github.allText()).not.toContain("From the old version");
-
-    await pc.sync();
-    expect(await pc.eventTitles()).toEqual(["From the old version"]);
+    expect(await pc.eventTitles()).toEqual(["Private"]);
+    expect(await strangerPhone.eventTitles()).toEqual(["Theirs"]);
   });
 
-  it("asks for a passphrase on a device set up before encryption", async () => {
-    await disconnect(laptop.settings);
-    await laptop.settings.set("sync.token", "key");
-    await expect(laptop.sync()).rejects.toThrow("Choose a passphrase");
+  it("stops syncing after leaving, keeping its data", async () => {
+    await laptop.events.create(meeting((await laptop.calendars.list())[0].id, "Kept"));
+    await laptop.sync();
+    await laptop.lan.leave();
+    await pc.events.create(meeting((await pc.calendars.list())[0].id, "Not sent"));
+    expect(await laptop.lan.syncAll()).toEqual({ localChanged: false, reached: [] });
+    expect(await laptop.eventTitles()).toEqual(["Kept"]);
+  });
+});
+
+describe("retiring the GitHub gist sync", () => {
+  it("deletes the old gists and forgets the GitHub key", async () => {
+    const db = createTestDriver();
+    const settings = new SettingsRepository(db);
+    await settings.set("sync.token", "key");
+    await settings.set("sync.passphrase", "secret");
+    const removed: string[] = [];
+    const store = (token: string) => {
+      expect(token).toBe("key");
+      return {
+        list: async () => [
+          { id: "a", encrypted: true },
+          { id: "b", encrypted: false },
+        ],
+        remove: async (id: string) => {
+          removed.push(id);
+        },
+      } as unknown as GistStore;
+    };
+    await retireGist(settings, store);
+    expect(removed).toEqual(["a", "b"]);
+    expect(await settings.get("sync.token")).toBeNull();
+    expect(await settings.get("sync.passphrase")).toBeNull();
+    expect(GIST_DESCRIPTION).toBe("Calendaria sync");
   });
 
-  it("does nothing until a key is set", async () => {
-    const fresh = new Device(github);
-    expect(await fresh.sync()).toBe(false);
-    expect(github.gists.size).toBe(0);
+  it("does nothing without a key", async () => {
+    const settings = new SettingsRepository(createTestDriver());
+    await retireGist(settings, () => {
+      throw new Error("shouldn't call GitHub");
+    });
   });
 });

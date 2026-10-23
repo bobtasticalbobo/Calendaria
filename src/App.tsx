@@ -19,7 +19,7 @@ import { StickyNote } from "./ui/StickyNote";
 import type { NoteHandlers } from "./ui/notes";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
-import { useUpdate } from "./ui/useUpdate";
+import { displayVersion, useUpdate } from "./ui/useUpdate";
 import { useSync } from "./ui/useSync";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { Popover, TagPicker } from "./ui/TagPicker";
@@ -28,6 +28,12 @@ import { type NotesFocus, NotesView } from "./notes/NotesView";
 import { TaskNags } from "./notes/TaskNags";
 import { TaskRepository } from "./db/tasks";
 import "./App.css";
+
+/** Phone-sized screens, where the sidebar becomes a drawer (matches App.css). */
+const NARROW = window.matchMedia("(max-width: 720px)");
+
+/** Sidebar items that show something in the main area, so the drawer gets out of the way. */
+const CLOSES_DRAWER = ".new-event, .new-page, .tree-page, .search-hit, .tree-new, .settings-open";
 
 interface Repos {
   db: SqlDriver;
@@ -80,7 +86,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openNote, setOpenNote] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
-  const [mode, setMode] = useState<ViewMode>("month");
+  // A phone screen is too narrow for a readable week, so it opens on the day.
+  const [mode, setMode] = useState<ViewMode>(() => (NARROW.matches ? "day" : "month"));
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [anchor, setAnchor] = useState(() => Temporal.Now.plainDateISO(zone));
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [newName, setNewName] = useState("");
@@ -351,9 +359,9 @@ export default function App() {
     <>
       {appUpdate.update && (
         <div className="update">
-          <p>Version {appUpdate.update.version} is ready.</p>
+          <p>Version {displayVersion(appUpdate.update.version)} is ready.</p>
           <button type="button" className="link" onClick={appUpdate.install}>
-            {appUpdate.installing ? "Updating…" : "Update and restart"}
+            {appUpdate.installing ? "Updating…" : appUpdate.installLabel}
           </button>
           {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
         </div>
@@ -361,7 +369,7 @@ export default function App() {
       <p className="zone-note">
         Times shown in {zone}
         <br />
-        Version {__APP_VERSION__}
+        Version {displayVersion(__APP_VERSION__)}
         <br />
         <button type="button" className="link settings-open" onClick={() => setSettingsOpen(true)}>
           Settings
@@ -371,7 +379,17 @@ export default function App() {
   );
 
   return (
-    <div className="layout">
+    <div
+      className={drawerOpen ? "layout drawer-open" : "layout"}
+      onClickCapture={(e) => {
+        const target = e.target as HTMLElement;
+        if (drawerOpen && !target.closest("input") && target.closest(CLOSES_DRAWER)) setDrawerOpen(false);
+      }}
+    >
+      <button type="button" className="drawer-toggle" aria-label="Menu" onClick={() => setDrawerOpen((o) => !o)}>
+        {drawerOpen ? "×" : "☰"}
+      </button>
+      {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       {section === "notes" ? (
         <NotesView
           repos={repos}
