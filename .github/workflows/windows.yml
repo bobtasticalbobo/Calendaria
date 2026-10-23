@@ -1,4 +1,4 @@
-name: Windows build
+name: Release build
 
 on:
   push:
@@ -44,22 +44,106 @@ jobs:
           cp src-tauri/target/release/bundle/nsis/*-setup.exe out/
           cp src-tauri/target/release/calendaria.exe out/Calendaria-portable.exe
           echo "version=$(node -p 'require("./src-tauri/tauri.conf.json").version')" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Calendaria-windows
-          path: out/*.exe
       # Each version merged to main becomes a release, which installed copies
       # find through latest.json and offer to install.
       - name: Write update manifest
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: bash
         run: node scripts/update-manifest.mjs src-tauri/target/release/bundle/nsis ${{ github.repository }} > out/latest.json
-      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.collect.outputs.version }}
-          name: Calendaria ${{ steps.collect.outputs.version }}
+          name: Calendaria-windows
+          path: out/*
+    outputs:
+      version: ${{ steps.collect.outputs.version }}
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      # The release keystore lives in the repo as a PKCS12 file whose password
+      # is derived from the updater signing secret, so it is useless without
+      # that secret. The first run on a branch creates it and commits it there;
+      # it must never be regenerated, or phones can't install updates over the
+      # old app.
+      - name: Signing key
+        shell: bash
+        env:
+          SIGNING_SECRET: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$SIGNING_SECRET" ]; then
+            echo "No signing secret; building an unsigned APK."
+            exit 0
+          fi
+          PASS=$(printf '%s' "$SIGNING_SECRET" | sha256sum | cut -d' ' -f1)
+          echo "::add-mask::$PASS"
+          KS=src-tauri/android-signing/release.p12
+          if [ ! -f "$KS" ]; then
+            if [ "${{ github.event_name }}" != "pull_request" ]; then
+              echo "::error::No Android keystore in the repo; it is created on a pull request run."
+              exit 1
+            fi
+            mkdir -p src-tauri/android-signing
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 -alias calendaria \
+              -keyalg RSA -keysize 4096 -validity 36500 \
+              -storepass "$PASS" -keypass "$PASS" -dname "CN=Calendaria"
+            gh api -X PUT "repos/${{ github.repository }}/contents/$KS" \
+              -f message="Add the Android release keystore (password-protected by the signing secret)" \
+              -f branch="${{ github.head_ref }}" \
+              -f content="$(base64 -w0 "$KS")" > /dev/null
+          fi
+          {
+            echo "storeFile=$GITHUB_WORKSPACE/$KS"
+            echo "keyAlias=calendaria"
+            echo "password=$PASS"
+          } > src-tauri/gen/android/keystore.properties
+      - name: Build
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: npx tauri android build --apk --target aarch64 --ci
+      - name: Collect the app
+        shell: bash
+        run: |
+          mkdir out
+          VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version')
+          find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' -print
+          cp "$(find src-tauri/gen/android/app/build/outputs/apk -name '*release*.apk' | head -1)" "out/Calendaria_${VERSION}_android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Calendaria-android
+          path: out/*.apk
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.windows.outputs.version }}
+          name: Calendaria ${{ needs.windows.outputs.version }}
           make_latest: true
           files: |
             out/Calendaria_*_x64-setup.exe
+            out/Calendaria_*_android.apk
             out/latest.json

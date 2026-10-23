@@ -19,7 +19,7 @@ import { StickyNote } from "./ui/StickyNote";
 import type { NoteHandlers } from "./ui/notes";
 import { type ViewMode, dayRange, stepAnchor, viewTitle, visibleDays } from "./ui/dates";
 import { seriesTimingFromOccurrenceEdit } from "./ui/edit";
-import { useUpdate } from "./ui/useUpdate";
+import { displayVersion, useUpdate } from "./ui/useUpdate";
 import { useSync } from "./ui/useSync";
 import { SettingsDialog } from "./ui/SettingsDialog";
 import { Popover, TagPicker } from "./ui/TagPicker";
@@ -351,9 +351,9 @@ export default function App() {
     <>
       {appUpdate.update && (
         <div className="update">
-          <p>Version {appUpdate.update.version} is ready.</p>
+          <p>Version {displayVersion(appUpdate.update.version)} is ready.</p>
           <button type="button" className="link" onClick={appUpdate.install}>
-            {appUpdate.installing ? "Updating…" : "Update and restart"}
+            {appUpdate.installing ? "Updating…" : appUpdate.installLabel}
           </button>
           {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
         </div>
@@ -361,7 +361,7 @@ export default function App() {
       <p className="zone-note">
         Times shown in {zone}
         <br />
-        Version {__APP_VERSION__}
+        Version {displayVersion(__APP_VERSION__)}
         <br />
         <button type="button" className="link settings-open" onClick={() => setSettingsOpen(true)}>
           Settings

@@ -5,7 +5,7 @@ import { formatTime } from "./dates";
 import { SyncPanel } from "./SyncPanel";
 import { ColorDots } from "./TagPicker";
 import type { useSync } from "./useSync";
-import type { useUpdate } from "./useUpdate";
+import { displayVersion, type useUpdate } from "./useUpdate";
 
 interface Props {
   appUpdate: ReturnType<typeof useUpdate>;
@@ -35,7 +35,7 @@ export function SettingsDialog({ appUpdate, sync, tags, onCreateTag, onChangeTag
 
   let updateStatus: string;
   if (appUpdate.checking) updateStatus = "Checking…";
-  else if (appUpdate.update) updateStatus = `Version ${appUpdate.update.version} is ready.`;
+  else if (appUpdate.update) updateStatus = `Version ${displayVersion(appUpdate.update.version)} is ready.`;
   else if (appUpdate.checkedAt) updateStatus = `Up to date, checked at ${timeOf(appUpdate.checkedAt)}.`;
   else updateStatus = "Not checked yet.";
 
@@ -46,13 +46,13 @@ export function SettingsDialog({ appUpdate, sync, tags, onCreateTag, onChangeTag
 
         <section className="settings-section">
           <h3>Version</h3>
-          <p>Calendaria {__APP_VERSION__}</p>
+          <p>Calendaria {displayVersion(__APP_VERSION__)}</p>
           <p className="muted">{updateStatus}</p>
           {appUpdate.error && <p className="error-text">{appUpdate.error}</p>}
           <div className="settings-actions">
             {appUpdate.update ? (
               <button type="button" className="primary" onClick={appUpdate.install}>
-                {appUpdate.installing ? "Updating…" : "Update and restart"}
+                {appUpdate.installing ? "Updating…" : appUpdate.installLabel}
               </button>
             ) : (
               <button type="button" onClick={appUpdate.checkNow} disabled={appUpdate.checking}>
