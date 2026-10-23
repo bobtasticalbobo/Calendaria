@@ -36,6 +36,7 @@ function page(id: string, body: string, extra: Partial<Note> = {}): Note {
     id,
     chapterId: DEFAULT_CHAPTER_ID,
     day: null,
+    boardTime: null,
     body,
     color: "yellow",
     pinned: false,

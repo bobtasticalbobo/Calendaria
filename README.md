@@ -10,6 +10,14 @@ Android) with sync between devices.
 - **SQLite** on the device via `tauri-plugin-sql`
 - **Vitest** tests that run against an in-memory SQLite database with the real migrations
 
+## Look
+
+The theme is "OP-1 Black", a Teenage Engineering flavoured dark look: mono
+labels (JetBrains Mono), pill-shaped switches, solid colour blocks for events
+and one orange accent. The colours are CSS variables at the top of
+`src/App.css`, and the TE-specific rules are grouped at the end of it. Fonts
+are bundled, so it looks the same offline.
+
 ## Installing on Windows
 
 Download `Calendaria_<version>_x64-setup.exe` from the newest release on the
@@ -110,6 +118,11 @@ rendered, with checklists you can tick.
   in the *Day notes* chapter), or **Notes for this day** for every page linked
   to it, mentioning it, or reminding you on it. Reminders show as a bell on
   their day. Dragging a note to another day moves its reminders on that day.
+- **On the board.** In the week and day views, drag a note from a day's header
+  onto the hours to pin it at a time. Drop it near an event's start or end and
+  it sticks to that edge; anywhere else it lands on the nearest quarter hour.
+  Drag it around freely, or back onto a day's header to take it off the board.
+  Right-click an empty time and pick **Note** to make one right there.
 - **Links.** `[[Page title]]` links to another page (or makes it), and each
   page lists the pages linking to it.
 - **Finding things.** Search (Ctrl+K) matches every word in titles, text and

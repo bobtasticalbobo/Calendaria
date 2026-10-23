@@ -22,6 +22,8 @@ export interface Note extends SyncedRecord, TaskFields {
   chapterId: string;
   /** The calendar day the page is linked to, if any. */
   day: Temporal.PlainDate | null;
+  /** Where the note sits on the day's week/day board, or null when it is only a marker in the day's header. */
+  boardTime: Temporal.PlainTime | null;
   /** Markdown. The first line is the title. */
   body: string;
   color: NoteColor;
@@ -35,6 +37,7 @@ export interface Note extends SyncedRecord, TaskFields {
 export interface NoteInput {
   chapterId?: string;
   day?: Temporal.PlainDate | null;
+  boardTime?: Temporal.PlainTime | null;
   body?: string;
   color?: NoteColor;
   pinned?: boolean;
@@ -45,6 +48,7 @@ export interface NoteInput {
 interface NoteRow extends SyncedRow, TaskRow {
   chapter_id: string | null;
   day: string | null;
+  board_time: string | null;
   body: string;
   color: string;
   pinned: number;
@@ -52,7 +56,7 @@ interface NoteRow extends SyncedRow, TaskRow {
   tags: string;
 }
 
-const COLUMNS = "id, chapter_id, day, body, color, pinned, position, tags, created_at, updated_at, deleted_at";
+const COLUMNS = "id, chapter_id, day, board_time, body, color, pinned, position, tags, created_at, updated_at, deleted_at";
 /** Read with the task columns, which are only written by TaskRepository. */
 const READ = `${COLUMNS}, ${TASK_COLUMNS}`;
 
@@ -65,12 +69,18 @@ function fromRow(row: NoteRow): Note {
     ...taskFromRow(row),
     chapterId: row.chapter_id ?? DEFAULT_CHAPTER_ID,
     day: row.day ? Temporal.PlainDate.from(row.day) : null,
+    boardTime: row.board_time ? Temporal.PlainTime.from(row.board_time) : null,
     body: row.body,
     color: (NOTE_COLORS as readonly string[]).includes(row.color) ? (row.color as NoteColor) : "yellow",
     pinned: Boolean(row.pinned),
     position: Number(row.position),
     tags: parseIdList(row.tags),
   };
+}
+
+/** Board times are kept to the minute, as "HH:MM". */
+function boardTimeText(time: Temporal.PlainTime | null): string | null {
+  return time ? time.toString({ smallestUnit: "minute" }) : null;
 }
 
 function validColor(color: string): NoteColor {
@@ -134,6 +144,7 @@ export class NoteRepository {
       id: newId(),
       chapterId,
       day: input.day ?? null,
+      boardTime: input.day ? (input.boardTime ?? null) : null,
       body: input.body ?? "",
       color: validColor(input.color ?? "yellow"),
       pinned: input.pinned ?? false,
@@ -146,10 +157,11 @@ export class NoteRepository {
       updatedAt: now,
       deletedAt: null,
     };
-    await this.db.execute(`INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, [
+    await this.db.execute(`INSERT INTO notes (${COLUMNS}) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, [
       note.id,
       note.chapterId,
       note.day?.toString() ?? null,
+      boardTimeText(note.boardTime),
       note.body,
       note.color,
       note.pinned ? 1 : 0,
@@ -169,6 +181,7 @@ export class NoteRepository {
       ...existing,
       chapterId: patch.chapterId ?? existing.chapterId,
       day: patch.day === undefined ? existing.day : patch.day,
+      boardTime: patch.boardTime === undefined ? existing.boardTime : patch.boardTime,
       body: patch.body ?? existing.body,
       color: patch.color === undefined ? existing.color : validColor(patch.color),
       pinned: patch.pinned ?? existing.pinned,
@@ -176,13 +189,16 @@ export class NoteRepository {
       tags: patch.tags === undefined ? existing.tags : [...new Set(patch.tags)],
       updatedAt: toTimestamp(this.clock()),
     };
+    // A page without a day has no board to sit on.
+    if (!updated.day) updated.boardTime = null;
     await this.db.execute(
-      `UPDATE notes SET chapter_id = $1, day = $2, body = $3, color = $4, pinned = $5, position = $6,
-         tags = $7, updated_at = $8
-       WHERE id = $9`,
+      `UPDATE notes SET chapter_id = $1, day = $2, board_time = $3, body = $4, color = $5, pinned = $6,
+         position = $7, tags = $8, updated_at = $9
+       WHERE id = $10`,
       [
         updated.chapterId,
         updated.day?.toString() ?? null,
+        boardTimeText(updated.boardTime),
         updated.body,
         updated.color,
         updated.pinned ? 1 : 0,
@@ -197,9 +213,10 @@ export class NoteRepository {
 
   /**
    * Moves a note to another day. Reminders on its old day move with it by the
-   * same number of days, keeping their time of day.
+   * same number of days, keeping their time of day. `boardTime` places it on
+   * the day's board, null takes it off, and leaving it out keeps it where it was.
    */
-  async moveToDay(id: string, day: Temporal.PlainDate): Promise<Note> {
+  async moveToDay(id: string, day: Temporal.PlainDate, boardTime?: Temporal.PlainTime | null): Promise<Note> {
     const existing = await this.get(id);
     if (!existing || existing.deletedAt) throw new Error(`Note ${id} not found`);
     if (existing.day) {
@@ -209,7 +226,7 @@ export class NoteRepository {
         if (r.noteId === id && r.at.toPlainDate().equals(existing.day)) await reminders.move(r.id, r.at.add(shift));
       }
     }
-    return this.update(id, { day });
+    return this.update(id, { day, boardTime });
   }
 
   /** Soft delete: the row stays as a tombstone so other devices learn about it, and the page can be restored. */

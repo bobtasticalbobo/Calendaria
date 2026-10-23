@@ -24,7 +24,7 @@ interface CalendarRow extends SyncedRow {
   color: string;
 }
 
-export const DEFAULT_CALENDAR_COLOR = "#3b82f6";
+export const DEFAULT_CALENDAR_COLOR = "#2f6bff";
 export const DEFAULT_CALENDAR_NAME = "Personal";
 
 const COLUMNS = "id, name, color, created_at, updated_at, deleted_at";
