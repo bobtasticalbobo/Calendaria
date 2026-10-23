@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import { type FormEvent, useEffect, useState } from "react";
 import { Temporal } from "../time/temporal";
 import { formatTime } from "./dates";
+import { QrScanner } from "./QrScanner";
 import type { useSync } from "./useSync";
 
 type Sync = ReturnType<typeof useSync>;
@@ -9,16 +10,6 @@ type Sync = ReturnType<typeof useSync>;
 function clock(date: Date | string): string {
   const at = Temporal.Instant.fromEpochMilliseconds(new Date(date).getTime());
   return formatTime(at.toZonedDateTimeISO(Temporal.Now.timeZoneId()));
-}
-
-/** Opens the camera and reads a QR code (phone only). */
-async function scanCode(): Promise<string | null> {
-  const scanner = await import("@tauri-apps/plugin-barcode-scanner");
-  if ((await scanner.checkPermissions()) !== "granted" && (await scanner.requestPermissions()) !== "granted") {
-    throw new Error("Calendaria needs the camera to scan the code. You can type the code instead.");
-  }
-  const found = await scanner.scan({ windowed: false, formats: [scanner.Format.QRCode] });
-  return found.content || null;
 }
 
 /** The pairing code a PC shows, as a QR code for the phone and as text for another PC. */
@@ -72,6 +63,7 @@ function JoinForm({ sync, onCancel }: { sync: Sync; onCancel: () => void }) {
   const [code, setCode] = useState("");
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function run(text: string, at?: string) {
@@ -87,16 +79,6 @@ function JoinForm({ sync, onCancel }: { sync: Sync; onCancel: () => void }) {
     }
   }
 
-  async function scan() {
-    setError(null);
-    try {
-      const text = await scanCode();
-      if (text) await run(text);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
-
   function submit(e: FormEvent) {
     e.preventDefault();
     if (code.trim()) run(code, address);
@@ -104,9 +86,18 @@ function JoinForm({ sync, onCancel }: { sync: Sync; onCancel: () => void }) {
 
   return (
     <form className="sync" onSubmit={submit}>
+      {scanning && (
+        <QrScanner
+          onClose={() => setScanning(false)}
+          onResult={(text) => {
+            setScanning(false);
+            run(text);
+          }}
+        />
+      )}
       <p className="muted">On a PC that already syncs (or the first one), open Settings and tap Show pairing code.</p>
       {!sync.canHost && (
-        <button type="button" className="primary" onClick={scan} disabled={busy}>
+        <button type="button" className="primary" onClick={() => setScanning(true)} disabled={busy}>
           Scan code
         </button>
       )}

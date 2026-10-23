@@ -94,8 +94,6 @@ pub fn run() {
             lan::lan_addresses,
             lan::lan_device_name,
         ]);
-    #[cfg(mobile)]
-    let builder = builder.plugin(tauri_plugin_barcode_scanner::init());
     // Self-update is desktop only; phones install the newer APK instead.
     #[cfg(desktop)]
     let builder = builder

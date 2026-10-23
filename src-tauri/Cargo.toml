@@ -1,6 +1,6 @@
 [package]
 name = "calendaria"
-version = "0.9.0"
+version = "0.9.1"
 description = "Calendaria: a local-first calendar and notes app"
 authors = ["Bobo"]
 edition = "2024"
@@ -30,10 +30,6 @@ tiny_http = "0.12"
 ureq = { version = "3", default-features = false }
 mdns-sd = "0.21"
 if-addrs = "0.15"
-
-# Scanning a PC's pairing QR code with the phone's camera.
-[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
-tauri-plugin-barcode-scanner = "2"
 
 # Self-update only exists on desktop; the phone app is updated by installing
 # the newer APK from the GitHub release.
