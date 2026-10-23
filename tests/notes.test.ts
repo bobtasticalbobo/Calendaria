@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_CHAPTER_ID, DEFAULT_NOTEBOOK_ID, NotebookRepository } from "../src/db/notebooks";
+import {
+  CALENDAR_CHAPTER_ID,
+  CALENDAR_NOTEBOOK_ID,
+  DEFAULT_CHAPTER_ID,
+  DEFAULT_NOTEBOOK_ID,
+  NotebookRepository,
+} from "../src/db/notebooks";
 import { NoteReminderRepository } from "../src/db/noteReminders";
 import { NoteRepository } from "../src/db/notes";
 import { Temporal } from "../src/time/temporal";
@@ -27,7 +33,14 @@ describe("NoteRepository", () => {
   it("stores and reads back a page exactly", async () => {
     const created = await notes.create({ day: date("2026-10-20"), body: "Buy milk\nand eggs", color: "pink" });
     expect(await notes.get(created.id)).toEqual(created);
-    expect(created.chapterId).toBe(DEFAULT_CHAPTER_ID);
+    expect(created.chapterId).toBe(CALENDAR_CHAPTER_ID);
+  });
+
+  it("puts notes made on a day in the Calendar notebook, other pages in the first one", async () => {
+    expect((await notes.create({ day: date("2026-10-20"), body: "On a day" })).chapterId).toBe(CALENDAR_CHAPTER_ID);
+    expect((await notes.create({ body: "Ideas" })).chapterId).toBe(DEFAULT_CHAPTER_ID);
+    const chosen = await notes.create({ day: date("2026-10-20"), chapterId: DEFAULT_CHAPTER_ID, body: "Here" });
+    expect(chosen.chapterId).toBe(DEFAULT_CHAPTER_ID);
   });
 
   it("keeps pages without a day off the calendar", async () => {
@@ -147,10 +160,14 @@ describe("NotebookRepository", () => {
     notes = new NoteRepository(db, clock);
   });
 
-  it("starts with one notebook holding the day notes chapter", async () => {
-    expect((await notebooks.listNotebooks()).map((n) => n.id)).toEqual([DEFAULT_NOTEBOOK_ID]);
+  it("starts with the Calendar notebook on top, then the first notebook", async () => {
+    expect((await notebooks.listNotebooks()).map((n) => [n.id, n.name])).toEqual([
+      [CALENDAR_NOTEBOOK_ID, "Calendar"],
+      [DEFAULT_NOTEBOOK_ID, "Notebook"],
+    ]);
     expect((await notebooks.listChapters()).map((c) => [c.id, c.notebookId, c.name])).toEqual([
       [DEFAULT_CHAPTER_ID, DEFAULT_NOTEBOOK_ID, "Day notes"],
+      [CALENDAR_CHAPTER_ID, CALENDAR_NOTEBOOK_ID, "Day notes"],
     ]);
   });
 
@@ -170,16 +187,18 @@ describe("NotebookRepository", () => {
     const page = await notes.create({ chapterId: chapter.id, body: "gone" });
     const kept = await notes.create({ body: "kept" });
     await notebooks.removeNotebook(notebook.id);
-    expect((await notebooks.listNotebooks()).map((n) => n.id)).toEqual([DEFAULT_NOTEBOOK_ID]);
+    expect((await notebooks.listNotebooks()).map((n) => n.id)).toEqual([CALENDAR_NOTEBOOK_ID, DEFAULT_NOTEBOOK_ID]);
     expect((await notes.list()).map((n) => n.id)).toEqual([kept.id]);
     expect((await notes.listTrash()).map((n) => n.id)).toEqual([page.id]);
     // Restored into the day notes chapter, since its own is gone.
     expect((await notes.restore(page.id, DEFAULT_CHAPTER_ID)).chapterId).toBe(DEFAULT_CHAPTER_ID);
   });
 
-  it("won't delete the default notebook or chapter", async () => {
+  it("won't delete the default or Calendar notebook or chapter", async () => {
     await expect(notebooks.removeNotebook(DEFAULT_NOTEBOOK_ID)).rejects.toThrow();
     await expect(notebooks.removeChapter(DEFAULT_CHAPTER_ID)).rejects.toThrow();
+    await expect(notebooks.removeNotebook(CALENDAR_NOTEBOOK_ID)).rejects.toThrow();
+    await expect(notebooks.removeChapter(CALENDAR_CHAPTER_ID)).rejects.toThrow();
   });
 });
 
@@ -197,7 +216,8 @@ describe("migration 0008", () => {
     const notes = new NoteRepository(driver);
     const reminders = new NoteReminderRepository(driver);
     const [dentist, plain] = await notes.list();
-    expect(dentist).toMatchObject({ id: "n1", body: "Dentist", color: "pink", chapterId: DEFAULT_CHAPTER_ID });
+    // 0012 then moves it on to the Calendar notebook.
+    expect(dentist).toMatchObject({ id: "n1", body: "Dentist", color: "pink", chapterId: CALENDAR_CHAPTER_ID });
     expect(dentist.day?.toString()).toBe("2026-10-20");
     expect(plain.tags).toEqual(["t"]);
     expect(plain.updatedAt).toBe("2026-10-19T11:00:00.000Z");
@@ -205,5 +225,29 @@ describe("migration 0008", () => {
     expect(r).toMatchObject({ id: "n1/remind", noteId: "n1", timeZone: ZONE });
     expect(r.at.toString()).toBe("2026-10-20T09:00:00");
     expect(await reminders.due(instant("2026-10-20T06:59Z"), instant("2026-10-20T07:00Z"))).toHaveLength(1);
+  });
+});
+
+describe("migration 0012", () => {
+  it("moves day notes out of the first notebook's default chapter, and nothing else", async () => {
+    const { driver, migrateRest } = createPartlyMigratedDriver(11);
+    const before = new NotebookRepository(driver, clock);
+    const { chapter } = await before.createNotebook("Mine");
+    const ts = "2026-10-21T10:00:00.000Z";
+    await driver.execute(
+      `INSERT INTO notes (id, chapter_id, day, body, created_at, updated_at)
+       VALUES ('day', '${DEFAULT_CHAPTER_ID}', '2026-10-20', 'Made on the calendar', '${ts}', '${ts}'),
+              ('loose', NULL, '2026-10-21', 'No chapter', '${ts}', '${ts}'),
+              ('page', '${DEFAULT_CHAPTER_ID}', NULL, 'My own page', '${ts}', '${ts}'),
+              ('placed', '${chapter.id}', '2026-10-22', 'Dragged onto the board', '${ts}', '${ts}')`,
+    );
+    migrateRest();
+    const byId = new Map((await new NoteRepository(driver).list()).map((n) => [n.id, n]));
+    expect(byId.get("day")!.chapterId).toBe(CALENDAR_CHAPTER_ID);
+    expect(byId.get("loose")!.chapterId).toBe(CALENDAR_CHAPTER_ID);
+    expect(byId.get("page")!.chapterId).toBe(DEFAULT_CHAPTER_ID);
+    expect(byId.get("placed")!.chapterId).toBe(chapter.id);
+    // Every device makes the same move, so it isn't stamped as a new change.
+    expect(byId.get("day")!.updatedAt).toBe(ts);
   });
 });

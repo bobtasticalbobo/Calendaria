@@ -154,7 +154,7 @@ describe("sync between devices", () => {
     expect(notes.map((n) => n.body)).toEqual(["Bring card"]);
   });
 
-  it("brings notebooks, pages and their reminders across, encrypted, with one default notebook", async () => {
+  it("brings notebooks, pages and their reminders across, encrypted, with one default and one Calendar notebook", async () => {
     const { notebook, chapter } = await laptop.notebooks.createNotebook("Travel");
     const page = await laptop.notes.create({ chapterId: chapter.id, body: "Oslo trip\nFly 24/10/2026", pinned: true });
     await laptop.reminders.create(page.id, Temporal.PlainDateTime.from("2026-10-24T06:00"), ZONE);
@@ -162,7 +162,7 @@ describe("sync between devices", () => {
     await laptop.sync();
     await pc.sync();
 
-    expect((await pc.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Notebook", "Travel"]);
+    expect((await pc.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Calendar", "Notebook", "Travel"]);
     expect((await pc.notebooks.listChapters()).find((c) => c.id === chapter.id)?.notebookId).toBe(notebook.id);
     const [synced] = (await pc.notes.list()).filter((n) => n.id === page.id);
     expect(synced).toMatchObject({ body: "Oslo trip\nFly 24/10/2026", pinned: true, chapterId: chapter.id });
@@ -172,7 +172,7 @@ describe("sync between devices", () => {
     await pc.notebooks.removeNotebook(notebook.id);
     await pc.sync();
     await laptop.sync();
-    expect((await laptop.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Notebook"]);
+    expect((await laptop.notebooks.listNotebooks()).map((n) => n.name)).toEqual(["Calendar", "Notebook"]);
     expect(await laptop.reminders.list()).toEqual([]);
   });
 

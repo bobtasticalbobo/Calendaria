@@ -1,6 +1,6 @@
 import { Temporal } from "../time/temporal";
 import type { SqlDriver } from "./driver";
-import { DEFAULT_CHAPTER_ID } from "./notebooks";
+import { CALENDAR_CHAPTER_ID, DEFAULT_CHAPTER_ID } from "./notebooks";
 import { NoteReminderRepository } from "./noteReminders";
 import { TASK_COLUMNS, type TaskFields, type TaskRow, taskFromRow } from "./tasks";
 import {
@@ -131,7 +131,8 @@ export class NoteRepository {
 
   async create(input: NoteInput): Promise<Note> {
     const now = toTimestamp(this.clock());
-    const chapterId = input.chapterId ?? DEFAULT_CHAPTER_ID;
+    // Notes made on a day go to the Calendar notebook unless told otherwise.
+    const chapterId = input.chapterId ?? (input.day ? CALENDAR_CHAPTER_ID : DEFAULT_CHAPTER_ID);
     let position = input.position;
     if (position === undefined) {
       const [{ last }] = await this.db.select<{ last: number | null }>(
