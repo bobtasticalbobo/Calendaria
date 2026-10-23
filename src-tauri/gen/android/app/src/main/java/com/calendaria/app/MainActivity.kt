@@ -1,7 +1,9 @@
 package com.calendaria.app
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import androidx.activity.enableEdgeToEdge
@@ -22,6 +24,15 @@ class MainActivity : TauriActivity() {
       view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
       WindowInsetsCompat.CONSUMED
     }
+    // From Android 17, reaching the PCs at home (and finding them) needs the
+    // "nearby devices" permission; without it connections just time out.
+    if (Build.VERSION.SDK_INT >= 37 && checkSelfPermission(LOCAL_NETWORK) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf(LOCAL_NETWORK), 1)
+    }
+  }
+
+  private companion object {
+    const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
   }
 
   // Android drops multicast packets unless an app asks for them, which is how

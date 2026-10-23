@@ -319,7 +319,7 @@ export class LanSync {
       }
     }
     if (targets.length === 0) {
-      throw new PairingError("No other Calendaria found on this network. Check both are on the same Wi-Fi, or enter the PC's address.");
+      throw new PairingError("No PC with Calendaria found on this network. Check both are on the same router (Wi-Fi or cable), or enter the PC's address.");
     }
     const body = await seal(key, "join", { from: await this.info() });
     let refused = false;
@@ -351,7 +351,7 @@ export class LanSync {
     throw new PairingError(
       refused
         ? "The PC didn't accept that code. Check it, or make a new one (codes last 10 minutes)."
-        : "Couldn't reach the PC. Check both are on the same Wi-Fi.",
+        : "Couldn't get through to the PC. On the phone, allow Calendaria to find nearby devices (Android settings > Apps > Calendaria > Permissions). On the PC, set the network to Private and allow Calendaria through Windows Firewall.",
     );
   }
 

@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { type FormEvent, useEffect, useState } from "react";
 import { Temporal } from "../time/temporal";
+import { parsePairing } from "../sync/lan";
 import { formatTime } from "./dates";
 import { QrScanner } from "./QrScanner";
 import type { useSync } from "./useSync";
@@ -17,6 +18,7 @@ function PairingCode({ sync }: { sync: Sync }) {
   const pairing = sync.pairing!;
   const [svg, setSvg] = useState("");
   const [left, setLeft] = useState(pairing.until - Date.now());
+  const addresses = parsePairing(pairing.link).addresses;
 
   useEffect(() => {
     QRCode.toString(pairing.link, { type: "svg", margin: 1, color: { dark: "#000000", light: "#ffffff" } }).then(setSvg);
@@ -47,6 +49,7 @@ function PairingCode({ sync }: { sync: Sync }) {
     <div className="sync pairing">
       <div className="pairing-qr" dangerouslySetInnerHTML={{ __html: svg }} />
       <p className="pairing-code">{pairing.code}</p>
+      {addresses.length > 0 && <p className="muted">This PC: {addresses.join(", ")}</p>}
       <p className="muted">
         On your phone, tap Scan code. On another PC, type the code. It works once, for {Math.ceil(left / 60_000)} more
         min.
@@ -160,7 +163,7 @@ export function SyncPanel({ sync }: { sync: Sync }) {
     return (
       <div className="sync">
         <p className="muted">
-          Sync straight between your phone and PCs over your home Wi-Fi. Nothing goes through the internet, and
+          Sync straight between your phone and PCs over your home network. Nothing goes through the internet, and
           everything sent is encrypted. Pair each device once.
         </p>
         {sync.error && <p className="error-text">{sync.error}</p>}
@@ -172,9 +175,9 @@ export function SyncPanel({ sync }: { sync: Sync }) {
   const pcs = sync.peers.filter((p) => p.port !== null);
   let status: string;
   if (sync.syncing) status = "Syncing…";
-  else if (pcs.length === 0 && sync.canHost) status = "Paired. Your other devices sync with this PC when they're on the same Wi-Fi.";
+  else if (pcs.length === 0 && sync.canHost) status = "Paired. Your other devices sync with this PC when they're on the same network.";
   else if (sync.lastSynced) status = `Synced at ${clock(sync.lastSynced)}`;
-  else status = "None of your PCs answered. They sync when you're on the same Wi-Fi (or Tailscale) and they're on.";
+  else status = "None of your PCs answered. They sync when you're on the same network (or Tailscale) and they're on.";
 
   return (
     <div className="sync">
