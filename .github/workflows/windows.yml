@@ -113,10 +113,9 @@ jobs:
             echo "keyAlias=calendaria"
             echo "password=$PASS"
           } > src-tauri/gen/android/keystore.properties
+      # The runner image comes with the Android SDK and NDK.
       - name: Build
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
-        run: npx tauri android build --apk --target aarch64 --ci
+        run: NDK_HOME="$ANDROID_NDK_LATEST_HOME" npx tauri android build --apk --target aarch64 --ci
       - name: Collect the app
         shell: bash
         run: |
