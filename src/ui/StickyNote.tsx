@@ -4,6 +4,7 @@ import { NOTE_COLORS, type Note, type NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatTime, formatWeekday } from "./dates";
+import { DateTimeInput } from "./fields";
 import { notePaperStyle, startNoteDrag } from "./notes";
 import { TagLabels, TagPicker } from "./TagPicker";
 
@@ -150,14 +151,11 @@ export function StickyNote(props: Props) {
           {reminders.length > 1 ? `${reminders.length} reminders` : "Remind"}
         </label>
         {remind && reminders.length === 1 && (
-          <input
-            type="datetime-local"
-            aria-label="Reminder time"
-            value={remind.at.toString({ smallestUnit: "minute" })}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              props.onMoveReminder(remind.id, Temporal.PlainDateTime.from(e.target.value));
-            }}
+          <DateTimeInput
+            className="sticky-when"
+            aria-label="Reminder"
+            value={remind.at}
+            onChange={(at) => props.onMoveReminder(remind.id, at)}
           />
         )}
         <span className="spacer" />
