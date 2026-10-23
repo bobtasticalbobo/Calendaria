@@ -12,12 +12,16 @@ import {
 } from "../time/repeat";
 import { Temporal } from "../time/temporal";
 import type { EventTiming } from "../time/timing";
+import { DateInput, TimeInput } from "./fields";
 
 export type EditScope = "this" | "all";
 
 export type DialogTarget =
   | { kind: "new"; day: Temporal.PlainDate; time?: Temporal.PlainTime }
   | { kind: "edit"; item: EventOccurrence };
+
+const plainDate = (text: string) => (text ? Temporal.PlainDate.from(text) : null);
+const plainTime = (text: string) => (text ? Temporal.PlainTime.from(text) : null);
 
 interface Props {
   target: DialogTarget;
@@ -220,14 +224,26 @@ export function EventDialog({ target, calendars, tags, zone, onCreateTag, onSave
         </label>
 
         <div className="row">
-          <input type="date" required value={form.startDate} onChange={(e) => set({ startDate: e.target.value })} />
+          <DateInput
+            aria-label="Start day"
+            value={plainDate(form.startDate)}
+            onChange={(d) => set({ startDate: d.toString() })}
+          />
           {!form.allDay && (
-            <input type="time" required value={form.startTime} onChange={(e) => set({ startTime: e.target.value })} />
+            <TimeInput
+              aria-label="Start time"
+              value={plainTime(form.startTime)}
+              onChange={(t) => set({ startTime: t.toString({ smallestUnit: "minute" }) })}
+            />
           )}
           <span>to</span>
-          <input type="date" required value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />
+          <DateInput aria-label="End day" value={plainDate(form.endDate)} onChange={(d) => set({ endDate: d.toString() })} />
           {!form.allDay && (
-            <input type="time" required value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />
+            <TimeInput
+              aria-label="End time"
+              value={plainTime(form.endTime)}
+              onChange={(t) => set({ endTime: t.toString({ smallestUnit: "minute" }) })}
+            />
           )}
         </div>
 
@@ -279,14 +295,10 @@ export function EventDialog({ target, calendars, tags, zone, onCreateTag, onSave
               <option value="after">After</option>
             </select>
             {form.repeat.end.type === "on" && (
-              <input
-                type="date"
-                required
-                value={form.repeat.end.date.toString()}
-                onChange={(e) =>
-                  e.target.value &&
-                  set({ repeat: { ...form.repeat, end: { type: "on", date: Temporal.PlainDate.from(e.target.value) } } })
-                }
+              <DateInput
+                aria-label="Repeat until"
+                value={form.repeat.end.date}
+                onChange={(date) => set({ repeat: { ...form.repeat, end: { type: "on", date } } })}
               />
             )}
             {form.repeat.end.type === "after" && (

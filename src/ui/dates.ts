@@ -66,3 +66,35 @@ export function viewTitle(mode: ViewMode, anchor: Temporal.PlainDate): string {
 export function formatTime(time: Temporal.ZonedDateTime | Temporal.PlainTime): string {
   return time.toLocaleString(APP_LOCALE, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 }
+
+/**
+ * Reads a typed date, day first: 23/10/2026, 23.10.26, 23-10, or ISO
+ * 2026-10-23. Without a year it is `today`'s year. Null if it isn't a real day.
+ */
+export function parseDate(text: string, today: Temporal.PlainDate): Temporal.PlainDate | null {
+  const t = text.trim();
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t);
+  const dmy = /^(\d{1,2})[/.\-\s](\d{1,2})(?:[/.\-\s](\d{2}|\d{4}))?\.?$/.exec(t);
+  let year: number, month: number, day: number;
+  if (iso) [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  else if (dmy) {
+    [day, month] = [Number(dmy[1]), Number(dmy[2])];
+    year = dmy[3] === undefined ? today.year : dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+  } else return null;
+  try {
+    return Temporal.PlainDate.from({ year, month, day }, { overflow: "reject" });
+  } catch {
+    return null;
+  }
+}
+
+/** Reads a typed 24-hour time: 9, 09:30, 9.30, 930, 2105. Null if it isn't one. */
+export function parseTime(text: string): Temporal.PlainTime | null {
+  const t = text.trim();
+  // "930" is 9:30 and "2105" is 21:05: the last two digits are the minutes.
+  const m = /^(\d{1,2})(?:[:.]?(\d{2}))?$/.exec(t);
+  if (!m) return null;
+  const [hour, minute] = [Number(m[1]), Number(m[2] ?? 0)];
+  if (hour > 23 || minute > 59) return null;
+  return new Temporal.PlainTime(hour, minute);
+}
