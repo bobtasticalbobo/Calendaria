@@ -14,6 +14,7 @@
     "opener:default",
     "sql:default",
     "sql:allow-execute",
-    "notification:default"
+    "notification:default",
+    "barcode-scanner:default"
   ]
 }
