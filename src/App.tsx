@@ -29,6 +29,12 @@ import { TaskNags } from "./notes/TaskNags";
 import { TaskRepository } from "./db/tasks";
 import "./App.css";
 
+/** Phone-sized screens, where the sidebar becomes a drawer (matches App.css). */
+const NARROW = window.matchMedia("(max-width: 720px)");
+
+/** Sidebar items that show something in the main area, so the drawer gets out of the way. */
+const CLOSES_DRAWER = ".new-event, .new-page, .tree-page, .search-hit, .tree-new, .settings-open";
+
 interface Repos {
   db: SqlDriver;
   settings: SettingsRepository;
@@ -80,7 +86,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [openNote, setOpenNote] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
-  const [mode, setMode] = useState<ViewMode>("month");
+  // A phone screen is too narrow for a readable week, so it opens on the day.
+  const [mode, setMode] = useState<ViewMode>(() => (NARROW.matches ? "day" : "month"));
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [anchor, setAnchor] = useState(() => Temporal.Now.plainDateISO(zone));
   const [dialog, setDialog] = useState<DialogTarget | null>(null);
   const [newName, setNewName] = useState("");
@@ -371,7 +379,17 @@ export default function App() {
   );
 
   return (
-    <div className="layout">
+    <div
+      className={drawerOpen ? "layout drawer-open" : "layout"}
+      onClickCapture={(e) => {
+        const target = e.target as HTMLElement;
+        if (drawerOpen && !target.closest("input") && target.closest(CLOSES_DRAWER)) setDrawerOpen(false);
+      }}
+    >
+      <button type="button" className="drawer-toggle" aria-label="Menu" onClick={() => setDrawerOpen((o) => !o)}>
+        {drawerOpen ? "×" : "☰"}
+      </button>
+      {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
       {section === "notes" ? (
         <NotesView
           repos={repos}
