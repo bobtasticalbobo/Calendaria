@@ -1,19 +1,28 @@
-/* Dark, minimal theme: one background, hairline dividers, color only where it carries meaning. */
+/* OP-1 Black: Teenage Engineering flavoured. Near-black panels, mono labels, pill keys, solid event blocks, one loud orange. */
 :root {
   color-scheme: dark;
-  --bg: #111214;
-  --raised: #1a1b1e;
-  --hover: #222327;
-  --text: #e4e4e7;
-  --muted: #7c7f88;
-  --faint: #4a4c52;
-  --line: #1f2023;
-  --border: #2a2b2f;
-  --accent: #7aa2f7;
-  --today: #7aa2f7;
-  --danger: #f7768e;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 14px;
+  --bg: #0b0b0b;
+  --panel: #141414;
+  --raised: #1c1c1c;
+  --hover: #242424;
+  --well: #1c1c1c;
+  --key: #e9e9e6;
+  --key-text: #0b0b0b;
+  --text: #ededea;
+  --muted: #8a8a86;
+  --faint: #4a4a48;
+  --line: #232323;
+  --border: #333333;
+  --accent: #ff5a1f;
+  --accent-deep: #a83300;
+  --on-accent: #0b0b0b;
+  --today: #ff5a1f;
+  --danger: #ff3b3b;
+  --dots: #1d1d1d;
+  --radius: 3px;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-family: Inter, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 13.5px;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -718,7 +727,7 @@ button:hover {
   z-index: 10;
   width: min(62%, 150px);
   border: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   pointer-events: none;
 }
@@ -733,10 +742,11 @@ button:hover {
   top: -9px;
   left: 4px;
   padding: 0 4px;
+  font-family: var(--mono);
   font-size: 0.66rem;
-  color: var(--bg);
+  color: var(--on-accent);
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: var(--radius);
 }
 
 .note-drop {
@@ -2106,4 +2116,310 @@ button:hover {
 
 .swatch-button:hover {
   transform: scale(1.5);
+}
+
+/* Teenage Engineering look: mono labels, pill keys, solid colour blocks. Kept together so the look is easy to tune. */
+
+.layout {
+  background-image: radial-gradient(var(--dots) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.sidebar,
+.page-side {
+  background: var(--panel);
+}
+
+input,
+select,
+textarea,
+button {
+  border-radius: var(--radius);
+}
+
+.sidebar h1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+
+.sidebar h1::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.sidebar h2,
+.page-side h3,
+.stats h3,
+.settings-section h3 {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.sidebar h2::before {
+  content: "■ ";
+  color: var(--accent);
+}
+
+.month-weekday,
+.timegrid-dayname,
+.timegrid-gutter span,
+.timegrid-allday-label,
+.chip-time,
+.timegrid-event span,
+.tree-count,
+.tree-due,
+.page-path,
+.page-foot,
+.zone-note,
+.calendar-list li,
+.toolbar > button {
+  font-family: var(--mono);
+}
+
+/* Pill keys: the section switch, view switch and page modes. */
+.segmented {
+  gap: 3px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--well);
+}
+
+.segmented button {
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.segmented .active,
+.segmented .active:hover {
+  color: var(--key-text);
+  background: var(--key);
+  box-shadow:
+    0 1px 0 #000,
+    inset 0 0 0 1px #fff;
+}
+
+.primary {
+  border-radius: 999px;
+  color: var(--on-accent);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 2px 0 var(--accent-deep);
+}
+
+.primary:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--accent-deep);
+}
+
+.page-bar button {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.toolbar h2 {
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Calendar */
+
+.month-weekday {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom: 2px solid var(--text);
+}
+
+.month-day-number {
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.month-day.other-month .month-day-number {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.today .month-day-number,
+.timegrid-dayname.today strong {
+  border-radius: var(--radius);
+  color: var(--on-accent);
+}
+
+.timegrid-dayname.today {
+  background: color-mix(in srgb, var(--today) 10%, transparent);
+}
+
+.timegrid-allday.today,
+.timegrid-day.today {
+  background: color-mix(in srgb, var(--today) 4%, transparent);
+}
+
+.chip::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+}
+
+.chip.tagged-event::before {
+  background: var(--tag);
+}
+
+.chip.tagged-event,
+.chip.tagged-event:hover {
+  background: none;
+  box-shadow: inset 2px 0 0 var(--tag);
+}
+
+/* Events in the week and day views, and all-day chips, are solid blocks in their colour. */
+.timegrid-event,
+.timegrid-event.tagged-event,
+.chip-allday,
+.chip-allday.tagged-event {
+  border-left: none;
+  border-radius: var(--radius);
+  color: var(--event-ink);
+  background: var(--event-color);
+  font-weight: 600;
+}
+
+.timegrid-event.tagged-event,
+.chip-allday.tagged-event {
+  background: var(--tag);
+  box-shadow: inset 3px 0 0 var(--event-color);
+}
+
+.timegrid-event:hover,
+.chip-allday:hover {
+  filter: brightness(1.1);
+  background: var(--event-color);
+}
+
+.timegrid-event.tagged-event:hover,
+.chip-allday.tagged-event:hover {
+  background: var(--tag);
+}
+
+.timegrid-event span,
+.timegrid-event.tagged-event span {
+  color: var(--event-ink);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+/* Notes */
+
+.notebook-row {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.tree-page.active {
+  color: var(--key-text);
+  background: var(--key);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.tree-page.active:hover {
+  background: var(--key);
+}
+
+.tree-due {
+  border-radius: var(--radius);
+  color: var(--accent);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.tree-due.today {
+  color: #0b0b0b;
+  background: #ffcf00;
+  box-shadow: none;
+}
+
+.tree-due.late {
+  color: #0b0b0b;
+  background: var(--danger);
+  box-shadow: none;
+}
+
+.md-title {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.md-date,
+.md-date:hover {
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.dialog,
+.popover,
+.context-menu {
+  border-radius: 6px;
+}
+
+.dialog .field {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dialog .field select,
+.dialog .field input,
+.dialog .field .row {
+  font-family: Inter, system-ui, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.stat-tile strong,
+.stats-head h2,
+.settings-title {
+  font-family: var(--mono);
+  letter-spacing: -0.02em;
+}
+
+.heat-cell,
+.stat-tile {
+  border-radius: var(--radius);
 }

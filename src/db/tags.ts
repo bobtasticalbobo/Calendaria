@@ -21,7 +21,7 @@ export interface TagInput {
 }
 
 /** Colors offered for tags, muted to suit the dark theme. */
-export const TAG_COLORS = ["#e06c75", "#e5a35b", "#d8c56a", "#7fbf7f", "#5fb3b3", "#7aa2f7", "#b48ead", "#8a8f98"];
+export const TAG_COLORS = ["#ff3b3b", "#ff5a1f", "#ffcf00", "#00b36b", "#00a5b5", "#2f6bff", "#a36bff", "#a3a3a0"];
 
 interface TagRow extends SyncedRow {
   name: string;
