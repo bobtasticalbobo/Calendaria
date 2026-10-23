@@ -2690,3 +2690,53 @@ input[type="checkbox"] {
     font-size: 16px;
   }
 }
+
+/* Scanning a pairing QR code on the phone (src/ui/QrScanner.tsx). */
+
+.qr-scanner {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  background: #000;
+}
+
+.qr-scanner video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-frame {
+  position: relative;
+  width: min(70vw, 280px);
+  aspect-ratio: 1;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.45);
+}
+
+.qr-hint,
+.qr-error {
+  position: relative;
+  margin: 0;
+  color: #fff;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.qr-close {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-height: 44px;
+  padding: 0 28px;
+}
