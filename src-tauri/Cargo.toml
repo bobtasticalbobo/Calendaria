@@ -1,6 +1,6 @@
 [package]
 name = "calendaria"
-version = "0.9.4"
+version = "0.9.5"
 description = "Calendaria: a local-first calendar and notes app"
 authors = ["Bobo"]
 edition = "2024"
@@ -23,6 +23,7 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio"] }
 tauri-plugin-notification = "2"
 # Home-network sync: a tiny HTTP server and client (plain HTTP, the payload is
 # encrypted by the app) and mDNS discovery.

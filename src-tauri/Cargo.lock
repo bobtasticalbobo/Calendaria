@@ -442,12 +442,13 @@ dependencies = [
 
 [[package]]
 name = "calendaria"
-version = "0.9.4"
+version = "0.9.5"
 dependencies = [
  "if-addrs",
  "mdns-sd",
  "serde",
  "serde_json",
+ "sqlx",
  "tauri",
  "tauri-build",
  "tauri-plugin-notification",
