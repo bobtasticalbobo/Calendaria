@@ -1,3 +1,4 @@
+mod fixups;
 mod lan;
 
 use tauri_plugin_sql::{Migration, MigrationKind};
@@ -7,7 +8,8 @@ pub const DB_URL: &str = "sqlite:calendaria.db";
 
 /// Schema migrations. The SQL files are the single source of truth: the
 /// TypeScript tests apply the same files, so the schema is tested as shipped.
-/// Never edit a released migration; add a new one instead.
+/// Never edit a released migration; add a new one instead. Rows with fixed
+/// ids must be inserted with INSERT OR IGNORE: sync can bring them first.
 fn migrations() -> Vec<Migration> {
     vec![
         Migration {
@@ -106,6 +108,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
     builder
+        .plugin(fixups::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(DB_URL, migrations())
