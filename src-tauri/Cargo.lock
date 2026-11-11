@@ -442,7 +442,7 @@ dependencies = [
 
 [[package]]
 name = "calendaria"
-version = "0.9.6"
+version = "0.9.7"
 dependencies = [
  "if-addrs",
  "mdns-sd",

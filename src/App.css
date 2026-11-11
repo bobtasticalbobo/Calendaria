@@ -621,7 +621,28 @@ button:hover {
 }
 
 .context-menu button {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
   text-align: left;
+}
+
+.context-menu button.divided {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  padding-top: 8px;
+}
+
+.context-menu button:disabled {
+  color: var(--faint);
+}
+
+.menu-hint {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--faint);
 }
 
 /* Sticky notes: paper colors muted to sit quietly on the dark theme. */
