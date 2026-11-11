@@ -3,6 +3,11 @@ import { useEffect, useRef } from "react";
 export interface MenuItem {
   label: string;
   onSelect: () => void;
+  /** A keyboard shortcut shown on the right. */
+  hint?: string;
+  disabled?: boolean;
+  /** Draw a line above this item. */
+  divider?: boolean;
 }
 
 interface Props {
@@ -43,12 +48,17 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
           type="button"
           role="menuitem"
           key={item.label}
+          className={item.divider ? "divided" : undefined}
+          disabled={item.disabled}
+          // Keep focus (and the selection) where it was, e.g. in the page text.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
             onClose();
             item.onSelect();
           }}
         >
-          {item.label}
+          <span>{item.label}</span>
+          {item.hint && <span className="menu-hint">{item.hint}</span>}
         </button>
       ))}
     </div>

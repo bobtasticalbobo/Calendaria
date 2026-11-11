@@ -1,5 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { NoteReminder } from "../db/noteReminders";
 import type { Note, NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
@@ -7,6 +7,7 @@ import { Temporal } from "../time/temporal";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
 import { DateInput, DatePickButton, DateTimeInput, TimeInput } from "../ui/fields";
 import { BellIcon, CalendarIcon, CheckboxIcon, CloseIcon, PinIcon } from "../ui/icons";
+import { ContextMenu, type MenuItem } from "../ui/ContextMenu";
 import { Popover, TagLabels, TagPicker } from "../ui/TagPicker";
 import {
   type Edit,
@@ -64,6 +65,8 @@ export function PageEditor(props: Props) {
   const [picking, setPicking] = useState<{ x: number; y: number } | null>(null);
   const [datePop, setDatePop] = useState<{ x: number; y: number; mention: DateMention } | null>(null);
   const [linkingDay, setLinkingDay] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number; selected: boolean; unbox: boolean } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
   const area = useRef<HTMLTextAreaElement>(null);
   const pending = useRef<number | undefined>(undefined);
   const selection = useRef<{ start: number; end: number } | null>(null);
@@ -178,6 +181,59 @@ export function PageEditor(props: Props) {
   }
 
   const checks = useMemo(() => checkLines(body), [body]);
+
+  /**
+   * Our own right-click menu on the page text, so it can offer Checkbox. Shift
+   * right-click still opens the system one (for spelling suggestions), and a
+   * long press on a phone keeps its own selection bar.
+   */
+  function onTextMenu(e: React.MouseEvent<HTMLTextAreaElement>) {
+    const pointer = (e.nativeEvent as PointerEvent).pointerType;
+    if (e.shiftKey || pointer === "touch" || pointer === "pen") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.currentTarget;
+    const unbox = toggleCheckboxes(el.value, el.selectionStart, el.selectionEnd).value.length < el.value.length;
+    setMenu({ x: e.clientX, y: e.clientY, selected: el.selectionStart !== el.selectionEnd, unbox });
+  }
+
+  async function copy(cut: boolean) {
+    const el = area.current;
+    if (!el || el.selectionStart === el.selectionEnd) return;
+    const { selectionStart: start, selectionEnd: end, value } = el;
+    el.focus();
+    try {
+      await navigator.clipboard.writeText(value.slice(start, end));
+      if (cut) apply(insertText(value, start, end, ""));
+    } catch {
+      // No clipboard access: Ctrl+C and Ctrl+X still work.
+    }
+  }
+
+  async function paste() {
+    const el = area.current;
+    if (!el) return;
+    el.focus();
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) apply(insertText(el.value, el.selectionStart, el.selectionEnd, text));
+    } catch {
+      // No clipboard access: Ctrl+V still works.
+    }
+  }
+
+  function selectAll() {
+    area.current?.focus();
+    area.current?.select();
+  }
+
+  const menuItems = (selected: boolean, unbox: boolean): MenuItem[] => [
+    { label: unbox ? "Remove checkbox" : "Checkbox", onSelect: addCheckboxes },
+    { label: "Cut", hint: "Ctrl+X", disabled: !selected, divider: true, onSelect: () => void copy(true) },
+    { label: "Copy", hint: "Ctrl+C", disabled: !selected, onSelect: () => void copy(false) },
+    { label: "Paste", hint: "Ctrl+V", onSelect: () => void paste() },
+    { label: "Select all", hint: "Ctrl+A", divider: true, onSelect: selectAll },
+  ];
 
   const handlers = {
     toggleTask: (line: number) => write(toggleTaskLine(body, line)),
@@ -327,6 +383,7 @@ export function PageEditor(props: Props) {
                 onChange={onInput}
                 onKeyDown={onKeyDown}
                 onSelect={(e) => setCursor(e.currentTarget.selectionStart)}
+                onContextMenu={onTextMenu}
                 onBlur={flush}
               />
             </div>
@@ -456,6 +513,10 @@ export function PageEditor(props: Props) {
             onToggle={(id, on) => onChange({ tags: on ? [...page.tags, id] : page.tags.filter((t) => t !== id) })}
           />
         </Popover>
+      )}
+
+      {menu && (
+        <ContextMenu x={menu.x} y={menu.y} items={menuItems(menu.selected, menu.unbox)} onClose={closeMenu} />
       )}
 
       {datePop && (
