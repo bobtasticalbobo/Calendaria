@@ -98,3 +98,64 @@ export function insertText(value: string, start: number, end: number, text: stri
   const cursor = start + text.length;
   return { value: value.slice(0, start) + text + value.slice(end), start: cursor, end: cursor };
 }
+
+const CHECK_ITEM = /^(\s*)((?:[-*]|\d+\.)\s)\[[ xX]\]\s?/;
+
+/**
+ * The checkbox button: puts a checkbox in front of every line the selection
+ * touches (skipping blank lines), or takes them away when they all have one.
+ */
+export function toggleCheckboxes(value: string, start: number, end: number): Edit {
+  const from = value.lastIndexOf("\n", start - 1) + 1;
+  const to = lineBounds(value, Math.max(start, end > start && value[end - 1] === "\n" ? end - 1 : end)).end;
+  const lines = value.slice(from, to).split("\n");
+  const filled = lines.filter((l) => l.trim());
+  const remove = filled.length > 0 && filled.every((l) => CHECK_ITEM.test(l));
+  let firstShift = 0;
+  let total = 0;
+  const changed = lines.map((line, i) => {
+    let out = line;
+    if (remove) {
+      out = line.replace(CHECK_ITEM, (_, lead: string, marker: string) => (/^[-*]\s$/.test(marker) ? lead : lead + marker));
+    } else if (line.trim() && !CHECK_ITEM.test(line)) {
+      const m = /^(\s*)(?:([-*]|\d+\.)\s)?/.exec(line)!;
+      out = `${m[1]}${m[2] ?? "-"} [ ] ${line.slice(m[0].length)}`;
+    }
+    const shift = out.length - line.length;
+    if (i === 0) firstShift = shift;
+    total += shift;
+    return out;
+  });
+  const next = value.slice(0, from) + changed.join("\n") + value.slice(to);
+  if (start === end) {
+    const cursor = Math.max(from, start + firstShift);
+    return { value: next, start: cursor, end: cursor };
+  }
+  return { value: next, start: from, end: to + total };
+}
+
+/** A checklist line as the writing view shows it: the box, then the text. */
+export interface CheckLine {
+  /** The line's index in the page. */
+  line: number;
+  /** Text before the box (indentation). */
+  lead: string;
+  /** The "- [ ] " characters the box is drawn over. */
+  marker: string;
+  done: boolean;
+  rest: string;
+}
+
+/** Splits a page into lines, finding the checklist items outside code blocks. */
+export function checkLines(value: string): (string | CheckLine)[] {
+  let code = false;
+  return value.split("\n").map((text, line) => {
+    if (/^\s*```/.test(text)) {
+      code = !code;
+      return text;
+    }
+    const m = code ? null : /^(\s*)((?:[-*]|\d+\.)\s\[([ xX])\]\s?)/.exec(text);
+    if (!m) return text;
+    return { line, lead: m[1], marker: m[2], done: m[3] !== " ", rest: text.slice(m[0].length) };
+  });
+}

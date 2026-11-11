@@ -216,3 +216,33 @@ describe("pages", () => {
     expect(tree[0].chapters[0].pages.map((p) => p.id)).toEqual(["p3"]);
   });
 });
+
+describe("checkboxes in the text", () => {
+  it("puts a box in front of every selected line, skipping blank ones", async () => {
+    const { toggleCheckboxes } = await import("../src/notes/editing");
+    const body = "11/11/2026\n\nShelf feedback\n\nTests with Susanne\n\nBusiness";
+    const start = body.indexOf("Shelf");
+    const edit = toggleCheckboxes(body, start, body.length);
+    expect(edit.value).toBe("11/11/2026\n\n- [ ] Shelf feedback\n\n- [ ] Tests with Susanne\n\n- [ ] Business");
+    expect(edit.value.slice(edit.start, edit.end)).toBe("- [ ] Shelf feedback\n\n- [ ] Tests with Susanne\n\n- [ ] Business");
+    // Pressing it again takes them away.
+    expect(toggleCheckboxes(edit.value, edit.start, edit.end).value).toBe(body);
+  });
+
+  it("works on the cursor's line and keeps list markers and indentation", async () => {
+    const { toggleCheckboxes } = await import("../src/notes/editing");
+    expect(toggleCheckboxes("a\n  b\nc", 4, 4)).toEqual({ value: "a\n  - [ ] b\nc", start: 10, end: 10 });
+    expect(toggleCheckboxes("1. milk", 0, 0).value).toBe("1. [ ] milk");
+    expect(toggleCheckboxes("1. [x] milk", 0, 0).value).toBe("1. milk");
+    expect(toggleCheckboxes("- [x] milk", 0, 0).value).toBe("milk");
+  });
+
+  it("finds checklist lines outside code", async () => {
+    const { checkLines } = await import("../src/notes/editing");
+    const lines = checkLines("Title\n- [x] done\n  * [ ] todo\n```\n- [ ] code\n```");
+    expect(lines[0]).toBe("Title");
+    expect(lines[1]).toEqual({ line: 1, lead: "", marker: "- [x] ", done: true, rest: "done" });
+    expect(lines[2]).toEqual({ line: 2, lead: "  ", marker: "* [ ] ", done: false, rest: "todo" });
+    expect(lines[4]).toBe("- [ ] code");
+  });
+});

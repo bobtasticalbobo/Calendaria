@@ -1,14 +1,23 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { NoteReminder } from "../db/noteReminders";
 import type { Note, NoteInput } from "../db/notes";
 import type { Tag } from "../db/tags";
 import { Temporal } from "../time/temporal";
 import { formatDate, formatTime, formatWeekday } from "../ui/dates";
 import { DateInput, DatePickButton, DateTimeInput, TimeInput } from "../ui/fields";
-import { BellIcon, CalendarIcon, CloseIcon, PinIcon } from "../ui/icons";
+import { BellIcon, CalendarIcon, CheckboxIcon, CloseIcon, PinIcon } from "../ui/icons";
 import { Popover, TagLabels, TagPicker } from "../ui/TagPicker";
-import { type Edit, continueList, indentLines, insertText, toggleTaskAtCursor, toggleTaskLine } from "./editing";
+import {
+  type Edit,
+  checkLines,
+  continueList,
+  indentLines,
+  insertText,
+  toggleCheckboxes,
+  toggleTaskAtCursor,
+  toggleTaskLine,
+} from "./editing";
 import { Markdown } from "./Markdown";
 import { type DateMention, expandShortcutBeforeCursor, findDateMentions, writeDate } from "./mentions";
 import { backlinks, findByTitle, pageTitle, taskCounts, wordCount } from "./pages";
@@ -154,6 +163,22 @@ export function PageEditor(props: Props) {
     el.focus();
   }
 
+  /** Ticks a box while writing, leaving the cursor where it was. */
+  function tickWhileWriting(line: number) {
+    const el = area.current;
+    if (el && document.activeElement === el) selection.current = { start: el.selectionStart, end: el.selectionEnd };
+    write(toggleTaskLine(body, line));
+  }
+
+  function addCheckboxes() {
+    const el = area.current;
+    if (!el) return;
+    apply(toggleCheckboxes(body, el.selectionStart, el.selectionEnd));
+    el.focus();
+  }
+
+  const checks = useMemo(() => checkLines(body), [body]);
+
   const handlers = {
     toggleTask: (line: number) => write(toggleTaskLine(body, line)),
     openLink: props.onOpenLink,
@@ -259,20 +284,53 @@ export function PageEditor(props: Props) {
         )}
 
         {mode === "edit" ? (
-          <textarea
-            ref={area}
-            className="page-text"
-            autoFocus={!body}
-            value={body}
-            spellCheck
-            placeholder={
-              "Title\n\nWrite here. Type a date like 24/10/2026, or @tomorrow, @fri, @+3, and you can get a reminder that day."
-            }
-            onChange={onInput}
-            onKeyDown={onKeyDown}
-            onSelect={(e) => setCursor(e.currentTarget.selectionStart)}
-            onBlur={flush}
-          />
+          <div className="page-write">
+            <div className="page-write-inner">
+              {/* The text is drawn here, under a see-through textarea, so checklist
+                  items can show a real box in place of their "- [ ]". */}
+              <div className="page-text page-mirror" aria-hidden="true">
+                {checks.map((l, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && "\n"}
+                    {typeof l === "string" ? (
+                      l
+                    ) : (
+                      <>
+                        {l.lead}
+                        <span className="mirror-box">
+                          {l.marker}
+                          <input
+                            type="checkbox"
+                            tabIndex={-1}
+                            checked={l.done}
+                            aria-label="Done"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onChange={() => tickWhileWriting(l.line)}
+                          />
+                        </span>
+                        <span className={l.done ? "mirror-done" : undefined}>{l.rest}</span>
+                      </>
+                    )}
+                  </Fragment>
+                ))}
+                {(!body || body.endsWith("\n")) && "\u200b"}
+              </div>
+              <textarea
+                ref={area}
+                className="page-text page-input"
+                autoFocus={!body}
+                value={body}
+                spellCheck
+                placeholder={
+                  "Title\n\nWrite here. Type a date like 24/10/2026, or @tomorrow, @fri, @+3, and you can get a reminder that day."
+                }
+                onChange={onInput}
+                onKeyDown={onKeyDown}
+                onSelect={(e) => setCursor(e.currentTarget.selectionStart)}
+                onBlur={flush}
+              />
+            </div>
+          </div>
         ) : (
           <div className="page-read" onDoubleClick={() => props.onMode("edit")}>
             {body.trim() ? <Markdown body={body} handlers={handlers} /> : <p className="muted">Empty page</p>}
@@ -281,12 +339,23 @@ export function PageEditor(props: Props) {
         <footer className="page-foot">
           {mode === "edit" ? (
             <span>
-              # heading · - list · - [ ] checklist (Ctrl+Enter) · **bold** · [[Page]] link · @tomorrow for a date
+              # heading · - list · - [ ] checkbox (Ctrl+Enter ticks) · **bold** · [[Page]] link · @tomorrow for a date
             </span>
           ) : (
             <span>Double-click to write</span>
           )}
           <span className="spacer" />
+          <button
+            type="button"
+            className="quiet insert-check"
+            title="Put a checkbox in front of the selected lines (or take it away)"
+            aria-label="Checkbox"
+            disabled={mode !== "edit"}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={addCheckboxes}
+          >
+            <CheckboxIcon />
+          </button>
           <DatePickButton
             className="insert-date"
             title="Insert a date"

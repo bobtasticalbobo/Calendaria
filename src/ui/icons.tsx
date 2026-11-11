@@ -50,3 +50,10 @@ export const CloseIcon = () => (
     <path d="M4 4l8 8M12 4l-8 8" />
   </svg>
 );
+
+export const CheckboxIcon = () => (
+  <svg {...base}>
+    <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+    <path d="M5.3 8.2l1.9 1.9 3.6-4" />
+  </svg>
+);
